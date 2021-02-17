@@ -1,0 +1,17 @@
+{
+  "botToken": "1234567890:ABCDEFGHIJKLMNOP_qrstuvwxyz12345678",
+  "plugins": [
+    "dev.inmo.tgbotapi.libraries.cache.admins.AdminsPlugin",
+    "dev.inmo.plagubot.example.CustomPlugin",
+    "dev.inmo.plagubot.plugins.inline.buttons.InlineButtonsPlugin",
+    "dev.inmo.plagubot.plugins.commands.CommandsPlugin",
+    "dev.inmo.plagubot.plugins.bans.BanPlugin",
+    "dev.inmo.plagubot.plugins.captcha.CaptchaBotPlugin",
+    "dev.inmo.plagubot.plugins.welcome.WelcomePlugin"
+  ],
+  "flushUpdates": true,
+  "clearCommands": true,
+  "database": {
+    "url": "jdbc:sqlite:local.db"
+  }
+}

@@ -1,0 +1,50 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "org.jetbrains.kotlin:kotlin-serialization:$kotlin_version"
+    }
+}
+
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version "$kotlin_version"
+    id "org.jetbrains.kotlin.plugin.serialization" version "$kotlin_version"
+    id 'application'
+}
+
+project.version = null
+
+Object GithubPackagesCredsClosure = {
+    username = project.findProperty("GITHUB_USER") ?: System.getenv("GITHUB_USER")
+    password = project.findProperty("GITHUB_TOKEN") ?: System.getenv("GITHUB_TOKEN")
+}
+
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+    mavenLocal()
+    maven { url "https://git.inmo.dev/api/packages/InsanusMokrassar/maven" }
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation "dev.inmo:plagubot.bot:$plagubot_version"
+    implementation "org.jetbrains.kotlinx:kotlinx-serialization-cbor:$serialization_version"
+
+    implementation "dev.inmo:plagubot.plugins.captcha:$plugins_version"
+    implementation "dev.inmo:plagubot.plugins.commands:$plugins_version"
+    implementation "dev.inmo:plagubot.plugins.bans:$plugins_version"
+    implementation "dev.inmo:plagubot.plugins.welcome:$plugins_version"
+    implementation "dev.inmo:plagubot.plugins.inline.buttons:$plugins_version"
+    implementation "dev.inmo:micro_utils.repos.exposed:$micro_utils_version"
+    implementation "dev.inmo:micro_utils.koin:$micro_utils_version"
+
+    implementation "dev.inmo:tgbotapi:$tgbotapi_version"
+}
+
+application {
+    mainClassName = 'dev.inmo.plagubot.AppKt'
+}

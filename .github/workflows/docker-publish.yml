@@ -1,0 +1,28 @@
+name: Docker
+
+on: [push]
+
+jobs:
+  publishing:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Rewrite version
+        run: |
+          branch="`echo "${{ github.ref }}" | grep -o "[^/]*$"`"
+          if [[ "$branch" != "master" ]]; then
+            cat gradle.properties | sed -e "s/^version=\([0-9\.]*\)/version=\1-branch_$branch-build${{ github.run_number }}/" > gradle.properties.tmp
+            rm gradle.properties
+            mv gradle.properties.tmp gradle.properties
+          fi
+      - name: Log into registry
+        uses: docker/login-action@28218f9b04b4f3f62068d7b6ce6ca5b26e35336c
+        with:
+          username: ${{ secrets.DOCKER_LOGIN }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Deploy
+        run: ./gradlew build && ./nonsudo_deploy
