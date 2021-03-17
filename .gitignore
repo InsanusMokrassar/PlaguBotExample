@@ -13,3 +13,5 @@ local.properties
 secret.gradle
 
 config.json
+Dockerfile
+deploy
