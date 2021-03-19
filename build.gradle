@@ -16,19 +16,27 @@ plugins {
     id 'application'
 }
 
+Object GithubPackagesCredsClosure = {
+    username = project.findProperty("GITHUB_USER") ?: System.getenv("GITHUB_USER")
+    password = project.findProperty("GITHUB_TOKEN") ?: System.getenv("GITHUB_TOKEN")
+}
+
 repositories {
     jcenter()
     mavenCentral()
     mavenLocal()
     maven { url 'https://jitpack.io' }
-    maven { url "https://dl.bintray.com/insanusmokrassar/PlaguBot/" }
+    maven {
+        url = uri("https://maven.pkg.github.com/InsanusMokrassar/CaptchaPlaguBotPlugin")
+        credentials(GithubPackagesCredsClosure)
+    }
 }
 
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     implementation "dev.inmo:plagubot.bot:$plagubot_version"
 
-    implementation "dev.inmo:plagubot.plugins.captcha:$plagubot_version"
+    implementation "dev.inmo:plagubot.plugins.captcha:$captcha_version"
 
     implementation "com.github.matfax.klassindex:library:$klassindex_version"
     kapt "com.github.matfax.klassindex:processor:$klassindex_version"
