@@ -66,6 +66,7 @@ private val Database.chatsSettingsTable: ChatsSettingsTable
         valueFromToTo = { banPluginSerialFormat.encodeToString(ChatSettings.serializer(), this) }
     )
 
+@Serializable
 class BanPlugin : Plugin {
     override suspend fun getCommands(): List<BotCommand> = warningCommands.map {
         BotCommand(it, "Warn user about some violation") // in format \"/$it[ weight[ reason]?]?\"")
