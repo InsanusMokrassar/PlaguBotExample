@@ -8,14 +8,12 @@ import dev.inmo.micro_utils.repos.mappers.withMapper
 import dev.inmo.plagubot.Plugin
 import dev.inmo.plagubot.config.database
 import dev.inmo.tgbotapi.extensions.api.chat.members.kickChatMember
-import dev.inmo.tgbotapi.extensions.api.chat.members.restrictChatMember
 import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommand
 import dev.inmo.tgbotapi.extensions.utils.formatting.*
 import dev.inmo.tgbotapi.libraries.cache.admins.adminsPlugin
 import dev.inmo.tgbotapi.types.*
-import dev.inmo.tgbotapi.types.MessageEntity.textsources.mention
 import dev.inmo.tgbotapi.types.message.abstracts.*
 import dev.inmo.tgbotapi.types.message.content.TextContent
 import kotlinx.serialization.*
@@ -32,7 +30,8 @@ private val warningCommands = listOf(
 
 @Serializable
 private data class ChatSettings(
-    val warningsUntilBan: Int = 3
+    val warningsUntilBan: Int = 3,
+    val allowWarnAdmins: Boolean = true,
 )
 private typealias WarningsTable = KeyValuesRepo<Pair<ChatId, UserId>, MessageIdentifier>
 private typealias ChatsSettingsTable = KeyValuesRepo<ChatId, ChatSettings>
@@ -110,9 +109,15 @@ class BanPlugin : Plugin {
                     reply(
                         commandMessage,
                         buildEntities {
-                            admins.map {
-                                mention("${it.user.lastName} ${it.user.firstName}", it.user.id)
-                                regular(" ")
+                            admins.filter {
+                                it.user !is Bot
+                            }.let { usersAdmins ->
+                                usersAdmins.mapIndexed { i, it ->
+                                    mention("${it.user.lastName} ${it.user.firstName}", it.user)
+                                    if (usersAdmins.lastIndex != i) {
+                                        regular(", ")
+                                    }
+                                }
                             }
                         }
                     )
