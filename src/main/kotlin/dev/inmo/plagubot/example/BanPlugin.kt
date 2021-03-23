@@ -1,6 +1,6 @@
 package dev.inmo.plagubot.example
 
-import dev.inmo.micro_utils.pagination.FirstPagePagination
+import dev.inmo.micro_utils.pagination.firstPageWithOneElementPagination
 import dev.inmo.micro_utils.repos.*
 import dev.inmo.micro_utils.repos.exposed.onetomany.ExposedOneToManyKeyValueRepo
 import dev.inmo.micro_utils.repos.mappers.withMapper
@@ -21,7 +21,6 @@ import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.Database
 
-private val oneElmentPagination = FirstPagePagination(1)
 private val warningCommandRegex = Regex("warn(ing)?")
 private val unwarningCommandRegex = Regex("unwarn(ing)?")
 private val setChatWarningsCountCommandRegex = Regex("set_chat_warnings_count")
@@ -115,7 +114,7 @@ class BanPlugin : Plugin {
                     val key = commandMessage.chat.id to userInReply.id
                     warningsRepository.add(key, commandMessage.messageId)
                     val warnings = warningsRepository.count(key)
-                    val settings = chatsSettings.get(commandMessage.chat.id, oneElmentPagination).results.firstOrNull() ?: ChatSettings().also {
+                    val settings = chatsSettings.get(commandMessage.chat.id, firstPageWithOneElementPagination).results.firstOrNull() ?: ChatSettings().also {
                         chatsSettings.add(commandMessage.chat.id, it)
                     }
                     if (warnings >= settings.warningsUntilBan) {
@@ -157,7 +156,7 @@ class BanPlugin : Plugin {
                     if (warnings.isNotEmpty()) {
                         warningsRepository.clear(key)
                         warningsRepository.add(key, warnings.dropLast(1))
-                        val settings = chatsSettings.get(commandMessage.chat.id, oneElmentPagination).results.firstOrNull() ?: ChatSettings().also {
+                        val settings = chatsSettings.get(commandMessage.chat.id, firstPageWithOneElementPagination).results.firstOrNull() ?: ChatSettings().also {
                             chatsSettings.add(commandMessage.chat.id, it)
                         }
                         sayUserHisWarnings(commandMessage, userInReply, settings, warnings.size - 1L)
@@ -203,7 +202,7 @@ class BanPlugin : Plugin {
                     return@onCommand
                 }
                 if (allowed) {
-                    val settings = chatsSettings.get(commandMessage.chat.id, oneElmentPagination).results.firstOrNull() ?: ChatSettings().also {
+                    val settings = chatsSettings.get(commandMessage.chat.id, firstPageWithOneElementPagination).results.firstOrNull() ?: ChatSettings().also {
                         chatsSettings.add(commandMessage.chat.id, it)
                     }
                     chatsSettings.set(
