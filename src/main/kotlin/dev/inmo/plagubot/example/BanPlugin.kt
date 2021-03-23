@@ -1,12 +1,12 @@
 package dev.inmo.plagubot.example
 
 import dev.inmo.micro_utils.pagination.FirstPagePagination
-import dev.inmo.micro_utils.repos.KeyValuesRepo
-import dev.inmo.micro_utils.repos.add
+import dev.inmo.micro_utils.repos.*
 import dev.inmo.micro_utils.repos.exposed.onetomany.ExposedOneToManyKeyValueRepo
 import dev.inmo.micro_utils.repos.mappers.withMapper
 import dev.inmo.plagubot.Plugin
 import dev.inmo.plagubot.config.database
+import dev.inmo.tgbotapi.CommonAbstracts.textSources
 import dev.inmo.tgbotapi.extensions.api.chat.members.kickChatMember
 import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
@@ -14,6 +14,7 @@ import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onComman
 import dev.inmo.tgbotapi.extensions.utils.formatting.*
 import dev.inmo.tgbotapi.libraries.cache.admins.adminsPlugin
 import dev.inmo.tgbotapi.types.*
+import dev.inmo.tgbotapi.types.MessageEntity.textsources.*
 import dev.inmo.tgbotapi.types.message.abstracts.*
 import dev.inmo.tgbotapi.types.message.content.TextContent
 import kotlinx.serialization.*
@@ -21,11 +22,17 @@ import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.Database
 
 private val oneElmentPagination = FirstPagePagination(1)
-private val warningCommandRegex = Regex("(warn(ing)?)|(attention)")
+private val warningCommandRegex = Regex("warn(ing)?")
+private val unwarningCommandRegex = Regex("unwarn(ing)?")
+private val setChatWarningsCountCommandRegex = Regex("set_chat_warnings_count")
+private val setChatWarningsCountCommand = "set_chat_warnings_count"
 private val warningCommands = listOf(
     "warn",
-    "warning",
-    "attention",
+    "warning"
+)
+private val unwarningCommands = listOf(
+    "unwarn",
+    "unwarning"
 )
 
 @Serializable
@@ -69,12 +76,31 @@ private val Database.chatsSettingsTable: ChatsSettingsTable
 class BanPlugin : Plugin {
     override suspend fun getCommands(): List<BotCommand> = warningCommands.map {
         BotCommand(it, "Warn user about some violation") // in format \"/$it[ weight[ reason]?]?\"")
-    }
+    } + unwarningCommands.map {
+        BotCommand(it, "Remove warning for user") // in format \"/$it[ weight[ reason]?]?\"")
+    } + listOf(
+        BotCommand(
+            setChatWarningsCountCommand,
+            "Set group chat warnings per user until his ban"
+        )
+    )
 
     override suspend fun BehaviourContext.invoke(database: Database, params: Map<String, Any>) {
         val adminsApi = params.adminsPlugin ?.adminsAPI(params.database ?: return) ?: return
         val warningsRepository = database.warningsTable
         val chatsSettings = database.chatsSettingsTable
+
+        suspend fun sayUserHisWarnings(message: Message, userInReply: User, settings: ChatSettings, warnings: Long) {
+            reply(
+                message,
+                buildEntities {
+                    mention("${userInReply.lastName}  ${userInReply.firstName}", userInReply)
+                    regular(" You have ")
+                    bold("${settings.warningsUntilBan - warnings}")
+                    regular(" warnings until ban")
+                }
+            )
+        }
 
         onCommand(
             warningCommandRegex,
@@ -95,15 +121,7 @@ class BanPlugin : Plugin {
                     if (warnings >= settings.warningsUntilBan) {
                         kickChatMember(commandMessage.chat, userInReply)
                     } else {
-                        reply(
-                            commandMessage,
-                            buildEntities {
-                                mention("${userInReply.lastName}  ${userInReply.firstName}", userInReply)
-                                regular(" You have ")
-                                bold("${settings.warningsUntilBan - warnings}")
-                                regular(" warnings until ban")
-                            }
-                        )
+                        sayUserHisWarnings(commandMessage, userInReply, settings, warnings)
                     }
                 } else {
                     reply(
@@ -120,6 +138,86 @@ class BanPlugin : Plugin {
                                 }
                             }
                         }
+                    )
+                }
+            }
+        }
+        onCommand(
+            unwarningCommandRegex,
+            requireOnlyCommandInMessage = false
+        ) { commandMessage ->
+            if (commandMessage is GroupContentMessage<TextContent>) {
+                val admins = adminsApi.getChatAdmins(commandMessage.chat.id) ?: return@onCommand
+                val allowed = commandMessage is AnonymousGroupContentMessage ||
+                    (commandMessage is CommonGroupContentMessage && admins.any { it.user.id == commandMessage.user.id })
+                val userInReply = (commandMessage.replyTo as? CommonGroupContentMessage<*>) ?.user ?: return@onCommand // add handling
+                if (allowed) {
+                    val key = commandMessage.chat.id to userInReply.id
+                    val warnings = warningsRepository.getAll(key)
+                    if (warnings.isNotEmpty()) {
+                        warningsRepository.clear(key)
+                        warningsRepository.add(key, warnings.dropLast(1))
+                        val settings = chatsSettings.get(commandMessage.chat.id, oneElmentPagination).results.firstOrNull() ?: ChatSettings().also {
+                            chatsSettings.add(commandMessage.chat.id, it)
+                        }
+                        sayUserHisWarnings(commandMessage, userInReply, settings, warnings.size - 1L)
+                    } else {
+                        reply(
+                            commandMessage,
+                            listOf(regular("User have no warns"))
+                        )
+                    }
+                } else {
+                    reply(
+                        commandMessage,
+                        listOf(regular("Sorry, you are not allowed for this action"))
+                    )
+                }
+            }
+        }
+        onCommand(
+            setChatWarningsCountCommandRegex,
+            requireOnlyCommandInMessage = false
+        ) { commandMessage ->
+            if (commandMessage is GroupContentMessage<TextContent>) {
+                val admins = adminsApi.getChatAdmins(commandMessage.chat.id) ?: return@onCommand
+                val allowed = commandMessage is AnonymousGroupContentMessage ||
+                    (commandMessage is CommonGroupContentMessage && admins.any { it.user.id == commandMessage.user.id })
+                var newCount: Int? = null
+                for (textSource in commandMessage.content.textSources.dropWhile { it !is BotCommandTextSource || it.command != setChatWarningsCountCommand }) {
+                    val potentialCount = textSource.source.trim().toIntOrNull()
+                    if (potentialCount != null) {
+                        newCount = potentialCount
+                        break
+                    }
+                }
+                if (newCount == null || newCount < 1) {
+                    reply(
+                        commandMessage,
+                        listOf(
+                            regular("Usage: "),
+                            code("/setChatWarningsCountCommand 3"),
+                            regular(" (or any other number more than 0)")
+                        )
+                    )
+                    return@onCommand
+                }
+                if (allowed) {
+                    val settings = chatsSettings.get(commandMessage.chat.id, oneElmentPagination).results.firstOrNull() ?: ChatSettings().also {
+                        chatsSettings.add(commandMessage.chat.id, it)
+                    }
+                    chatsSettings.set(
+                        commandMessage.chat.id,
+                        settings.copy(warningsUntilBan = newCount)
+                    )
+                    reply(
+                        commandMessage,
+                        listOf(regular("Now warnings count is $newCount"))
+                    )
+                } else {
+                    reply(
+                        commandMessage,
+                        listOf(regular("Sorry, you are not allowed for this action"))
                     )
                 }
             }
