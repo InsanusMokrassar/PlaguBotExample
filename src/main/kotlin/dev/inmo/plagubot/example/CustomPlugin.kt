@@ -1,5 +1,6 @@
 package dev.inmo.plagubot.example
 
+import dev.inmo.micro_utils.coroutines.defaultSafelyWithoutExceptionHandler
 import dev.inmo.micro_utils.coroutines.subscribeSafelyWithoutExceptions
 import dev.inmo.plagubot.Plugin
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
@@ -12,6 +13,9 @@ class CustomPlugin : Plugin {
     override suspend fun BehaviourContext.invoke(database: Database, params: Map<String, Any>) {
         allUpdatesFlow.subscribeSafelyWithoutExceptions(this) {
             println(it)
+        }
+        defaultSafelyWithoutExceptionHandler = {
+            it.printStackTrace()
         }
     }
 }
