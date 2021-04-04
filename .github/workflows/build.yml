@@ -14,3 +14,6 @@ jobs:
           java-version: 1.8
       - name: Build with Gradle
         run: ./gradlew build
+        env:
+          GITHUB_USER: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
