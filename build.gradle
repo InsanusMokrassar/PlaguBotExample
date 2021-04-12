@@ -35,8 +35,11 @@ repositories {
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     implementation "dev.inmo:plagubot.bot:$plagubot_version"
+    implementation "org.jetbrains.kotlinx:kotlinx-serialization-cbor:$serialization_version"
 
     implementation "dev.inmo:plagubot.plugins.captcha:$captcha_version"
+
+    implementation "dev.inmo:tgbotapi:$tgbotapi_version"
 
     implementation "com.github.matfax.klassindex:library:$klassindex_version"
     kapt "com.github.matfax.klassindex:processor:$klassindex_version"
