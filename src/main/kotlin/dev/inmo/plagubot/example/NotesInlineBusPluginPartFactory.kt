@@ -1,17 +1,19 @@
 package dev.inmo.plagubot.example
 
+import dev.inmo.micro_utils.pagination.FirstPagePagination
 import dev.inmo.micro_utils.repos.*
 import dev.inmo.micro_utils.repos.exposed.*
 import dev.inmo.micro_utils.repos.exposed.keyvalue.ExposedKeyValueRepo
 import dev.inmo.micro_utils.repos.mappers.withMapper
 import dev.inmo.plagubot.config.database
-import dev.inmo.tgbotapi.CommonAbstracts.TextSource
-import dev.inmo.tgbotapi.CommonAbstracts.textSources
+import dev.inmo.tgbotapi.CommonAbstracts.*
 import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
 import dev.inmo.tgbotapi.extensions.behaviour_builder.expectations.waitText
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.command
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommand
+import dev.inmo.tgbotapi.extensions.utils.asContentMessage
+import dev.inmo.tgbotapi.extensions.utils.asFromUserMessage
 import dev.inmo.tgbotapi.extensions.utils.extensions.parseCommandsWithParams
 import dev.inmo.tgbotapi.types.*
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.InlineQueryResultArticle
@@ -32,6 +34,7 @@ import org.jetbrains.exposed.sql.statements.api.ExposedBlob
 import org.jetbrains.exposed.sql.transactions.transaction
 
 typealias TextNoteKey = Pair<Identifier, String>
+typealias TextNoteId = Long
 fun User.textNoteKey(keyword: String) = "${id.chatId}_$keyword"
 fun TextNoteKey.textNoteKey() = "${first}_$second"
 
@@ -132,14 +135,16 @@ class NotesTextInlineBusPart(
             InlineQueryResultArticle(
                 it.key.textNoteKey(),
                 it.keyword,
-                InputTextMessageContent(it.sources)
+                InputTextMessageContent(it.sources),
+                description = it.sources.makeString().take(100)
             )
-
         }
     }
 }
 
 const val SaveNoteCommand = "save_as_note"
+const val RemoveNoteCommand = "remove_note"
+val RemoveNoteCommandFirstPage = FirstPagePagination(6)
 
 @Serializable
 class NotesInlineBusPluginPartFactory : InlineBusPluginPartFactory {
@@ -155,8 +160,8 @@ class NotesInlineBusPluginPartFactory : InlineBusPluginPartFactory {
         val db = params.database ?: database
         val textPart = NotesTextInlineBusPart(db)
         command(Regex(SaveNoteCommand), requireOnlyCommandInMessage = false) { commandMessage ->
-            val repliedTo = commandMessage.replyTo
-            if (repliedTo == null || repliedTo !is ContentMessage<*>) {
+            val repliedTo = commandMessage.replyTo ?.asContentMessage()
+            if (repliedTo == null) {
                 reply(commandMessage, "Reply to message and send me /$SaveNoteCommand to save note")
                 return@command
             }
@@ -165,11 +170,10 @@ class NotesInlineBusPluginPartFactory : InlineBusPluginPartFactory {
                 reply(commandMessage, "Unfortunately, currently supported only text messages")
                 return@command
             }
-            val asSentFromUser = (commandMessage as? FromUserMessage) ?: let { _ ->
+            val user = commandMessage.asFromUserMessage() ?.user ?: let { _ ->
                 reply(commandMessage, "Unfortunately, I can't recognise user from message. Send me message in private or as common user in group")
                 return@command
             }
-            val user = asSentFromUser.user
             var title = commandMessage.parseCommandsWithParams()[SaveNoteCommand] ?.firstOrNull()
             if (title.isNullOrBlank()) {
                 reply(commandMessage, "Ok, send me title for note")
