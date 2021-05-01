@@ -6,7 +6,6 @@ import dev.inmo.micro_utils.repos.exposed.onetomany.ExposedOneToManyKeyValueRepo
 import dev.inmo.micro_utils.repos.mappers.withMapper
 import dev.inmo.plagubot.Plugin
 import dev.inmo.plagubot.config.database
-import dev.inmo.tgbotapi.CommonAbstracts.textSources
 import dev.inmo.tgbotapi.extensions.api.chat.members.kickChatMember
 import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext

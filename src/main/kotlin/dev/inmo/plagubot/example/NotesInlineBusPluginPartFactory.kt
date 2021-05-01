@@ -1,6 +1,6 @@
 package dev.inmo.plagubot.example
 
-import dev.inmo.micro_utils.pagination.FirstPagePagination
+import dev.inmo.micro_utils.pagination.*
 import dev.inmo.micro_utils.repos.*
 import dev.inmo.micro_utils.repos.exposed.*
 import dev.inmo.micro_utils.repos.exposed.keyvalue.ExposedKeyValueRepo
@@ -20,6 +20,7 @@ import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.InlineQueryResult
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.abstracts.InlineQueryResult
 import dev.inmo.tgbotapi.types.InlineQueries.InputMessageContent.InputTextMessageContent
 import dev.inmo.tgbotapi.types.MessageEntity.textsources.TextSourceSerializer
+import dev.inmo.tgbotapi.types.buttons.InlineKeyboardButtons.CallbackDataInlineKeyboardButton
 import dev.inmo.tgbotapi.types.message.abstracts.ContentMessage
 import dev.inmo.tgbotapi.types.message.abstracts.FromUserMessage
 import dev.inmo.tgbotapi.types.message.content.TextContent
@@ -49,12 +50,14 @@ data class TextNoteInfo(
 ) {
     val key by lazy {
         TextNoteKey(owner, keyword)
-
     }
 }
 
+private val defaultNotesPage = FirstPagePagination(12)
+
 private interface NotesTextInlineBusPartRepo : CRUDRepo<TextNoteInfo, TextNoteKey, TextNoteInfo> {
     suspend fun findNotes(owner: Identifier, keywordPart: String): List<TextNoteInfo>
+    suspend fun getNotes(owner: Identifier, page: Pagination): PaginationResult<TextNoteInfo>
 }
 
 private class NotesTextInlineBusPartTable(
@@ -117,6 +120,19 @@ private class NotesTextInlineBusPartTable(
     ): List<TextNoteInfo> = transaction(database) {
         select { ownerColumn.eq(owner).and(keywordColumn.like("%$keywordPart%")) }.map { it.asObject }
     }
+
+    private fun count(owner: Identifier) = transaction(database) {
+        select { ownerColumn.eq(owner) }.count()
+    }
+
+    override suspend fun getNotes(owner: Identifier, page: Pagination): PaginationResult<TextNoteInfo> = transaction(database) {
+        select { ownerColumn.eq(owner) }.paginate(page).map { it.asObject } to count(owner)
+    }.let { (list, count) ->
+        list.createPaginationResult(
+            page,
+            count
+        )
+    }
 }
 
 class NotesTextInlineBusPart(
@@ -127,6 +143,14 @@ class NotesTextInlineBusPart(
     suspend fun saveNote(noteInfo: TextNoteInfo) {
         textNotesTable.deleteById(noteInfo.key)
         textNotesTable.create(noteInfo)
+    }
+
+    suspend fun buildButtonsForManagement(user: User, page: Int = 0) {
+        val pagination = defaultNotesPage.copy(page)
+        val notes = textNotesTable.getNotes(user.id.chatId, pagination)
+        val chunked = notes.results.chunked(2).map {
+
+        }
     }
 
     override suspend fun getResults(user: User, query: String): List<InlineQueryResult> {
