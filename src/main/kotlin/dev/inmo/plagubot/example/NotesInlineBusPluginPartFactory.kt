@@ -79,14 +79,6 @@ private class NotesTextInlineBusPartTable(
         }
         resultOp
     }
-    override val InsertStatement<Number>.asObject: TextNoteInfo
-        get() = asObject(
-            TextNoteInfo(
-                get(ownerColumn),
-                get(keywordColumn),
-                textNotesSavingFormat.decodeFromByteArray(textSourcesSerializer, get(textColumn).bytes)
-            )
-        )
 
     override val selectById: SqlExpressionBuilder.(TextNoteKey) -> Op<Boolean> = {
         ownerColumn.eq(it.first).and(keywordColumn.eq(it.second))
