@@ -1,7 +1,9 @@
 package dev.inmo.plagubot.example
 
+import dev.inmo.micro_utils.coroutines.launchSafelyWithoutExceptions
 import dev.inmo.micro_utils.pagination.firstPageWithOneElementPagination
 import dev.inmo.micro_utils.repos.*
+import dev.inmo.micro_utils.repos.exposed.keyvalue.ExposedKeyValueRepo
 import dev.inmo.micro_utils.repos.exposed.onetomany.ExposedOneToManyKeyValueRepo
 import dev.inmo.micro_utils.repos.mappers.withMapper
 import dev.inmo.plagubot.Plugin
@@ -32,6 +34,7 @@ private val unwarningCommands = listOf(
     "unwarn",
     "unwarning"
 )
+private const val countWarningsCommand = "ban_count_warns"
 
 @Serializable
 private data class ChatSettings(
@@ -39,7 +42,7 @@ private data class ChatSettings(
     val allowWarnAdmins: Boolean = true,
 )
 private typealias WarningsTable = KeyValuesRepo<Pair<ChatId, UserId>, MessageIdentifier>
-private typealias ChatsSettingsTable = KeyValuesRepo<ChatId, ChatSettings>
+private typealias ChatsSettingsTable = KeyValueRepo<ChatId, ChatSettings>
 
 private val Database.warningsTable: WarningsTable
     get() = ExposedOneToManyKeyValueRepo(
@@ -58,7 +61,7 @@ private val banPluginSerialFormat = Json {
     ignoreUnknownKeys = true
 }
 private val Database.chatsSettingsTable: ChatsSettingsTable
-    get() = ExposedOneToManyKeyValueRepo(
+    get() = ExposedKeyValueRepo(
         this,
         { long("chatId") },
         { text("userId") },
@@ -80,6 +83,10 @@ class BanPlugin : Plugin {
         BotCommand(
             setChatWarningsCountCommand,
             "Set group chat warnings per user until his ban"
+        ),
+        BotCommand(
+            countWarningsCommand,
+            "Use with reply (or just call to get know about you) to get warnings count"
         )
     )
 
@@ -113,8 +120,8 @@ class BanPlugin : Plugin {
                     val key = commandMessage.chat.id to userInReply.id
                     warningsRepository.add(key, commandMessage.messageId)
                     val warnings = warningsRepository.count(key)
-                    val settings = chatsSettings.get(commandMessage.chat.id, firstPageWithOneElementPagination).results.firstOrNull() ?: ChatSettings().also {
-                        chatsSettings.add(commandMessage.chat.id, it)
+                    val settings = chatsSettings.get(commandMessage.chat.id) ?: ChatSettings().also {
+                        chatsSettings.set(commandMessage.chat.id, it)
                     }
                     if (warnings >= settings.warningsUntilBan) {
                         kickChatMember(commandMessage.chat, userInReply)
@@ -155,8 +162,8 @@ class BanPlugin : Plugin {
                     if (warnings.isNotEmpty()) {
                         warningsRepository.clear(key)
                         warningsRepository.add(key, warnings.dropLast(1))
-                        val settings = chatsSettings.get(commandMessage.chat.id, firstPageWithOneElementPagination).results.firstOrNull() ?: ChatSettings().also {
-                            chatsSettings.add(commandMessage.chat.id, it)
+                        val settings = chatsSettings.get(commandMessage.chat.id) ?: ChatSettings().also {
+                            chatsSettings.set(commandMessage.chat.id, it)
                         }
                         sayUserHisWarnings(commandMessage, userInReply, settings, warnings.size - 1L)
                     } else {
@@ -201,8 +208,8 @@ class BanPlugin : Plugin {
                     return@onCommand
                 }
                 if (allowed) {
-                    val settings = chatsSettings.get(commandMessage.chat.id, firstPageWithOneElementPagination).results.firstOrNull() ?: ChatSettings().also {
-                        chatsSettings.add(commandMessage.chat.id, it)
+                    val settings = chatsSettings.get(commandMessage.chat.id) ?: ChatSettings().also {
+                        chatsSettings.set(commandMessage.chat.id, it)
                     }
                     chatsSettings.set(
                         commandMessage.chat.id,
@@ -216,6 +223,31 @@ class BanPlugin : Plugin {
                     reply(
                         commandMessage,
                         listOf(regular("Sorry, you are not allowed for this action"))
+                    )
+                }
+            }
+        }
+
+        onCommand(
+            countWarningsCommand,
+            requireOnlyCommandInMessage = true
+        ) { commandMessage ->
+            launchSafelyWithoutExceptions {
+                if (commandMessage is GroupContentMessage<TextContent>) {
+                    val replyMessage = commandMessage.replyTo
+                    val messageToSearch = replyMessage ?: commandMessage
+                    val user = when (messageToSearch) {
+                        is CommonGroupContentMessage<*> -> messageToSearch.user
+                        else -> {
+                            reply(commandMessage, buildEntities { regular("Only common messages of users are allowed in reply for this command and to be called with this command") })
+                            return@launchSafelyWithoutExceptions
+                        }
+                    }
+                    val count = warningsRepository.count(messageToSearch.chat.id to user.id)
+                    val maxCount = (chatsSettings.get(messageToSearch.chat.id) ?: ChatSettings()).warningsUntilBan
+                    reply(
+                        commandMessage,
+                        regular("User ") + user.mention("${user.firstName} ${user.lastName}") + " have " + bold("$count/$maxCount") + " (" + bold("${maxCount - count}") + " left until ban)"
                     )
                 }
             }
