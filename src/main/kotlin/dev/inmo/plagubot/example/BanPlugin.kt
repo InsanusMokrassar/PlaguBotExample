@@ -2,7 +2,6 @@ package dev.inmo.plagubot.example
 
 import dev.inmo.micro_utils.coroutines.launchSafelyWithoutExceptions
 import dev.inmo.micro_utils.coroutines.safelyWithResult
-import dev.inmo.micro_utils.pagination.firstPageWithOneElementPagination
 import dev.inmo.micro_utils.repos.*
 import dev.inmo.micro_utils.repos.exposed.keyvalue.ExposedKeyValueRepo
 import dev.inmo.micro_utils.repos.exposed.onetomany.ExposedOneToManyKeyValueRepo
@@ -23,6 +22,8 @@ import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.Database
 
+private val disableCommandRegex = Regex("disable_ban_plugin")
+private val enableCommandRegex = Regex("enable_ban_plugin")
 private val warningCommandRegex = Regex("warn(ing)?")
 private val unwarningCommandRegex = Regex("unwarn(ing)?")
 private val setChatWarningsCountCommandRegex = Regex("set_chat_warnings_count")
@@ -36,11 +37,14 @@ private val unwarningCommands = listOf(
     "unwarning"
 )
 private const val countWarningsCommand = "ban_count_warns"
+private const val disableCommand = "disable_ban_plugin"
+private const val enableCommand = "enable_ban_plugin"
 
 @Serializable
 private data class ChatSettings(
     val warningsUntilBan: Int = 3,
     val allowWarnAdmins: Boolean = true,
+    val enabled: Boolean = true,
 )
 private typealias WarningsTable = KeyValuesRepo<Pair<ChatId, UserId>, MessageIdentifier>
 private typealias ChatsSettingsTable = KeyValueRepo<ChatId, ChatSettings>
@@ -73,6 +77,23 @@ private val Database.chatsSettingsTable: ChatsSettingsTable
         valueToToFrom = { banPluginSerialFormat.decodeFromString(ChatSettings.serializer(), this) },
         valueFromToTo = { banPluginSerialFormat.encodeToString(ChatSettings.serializer(), this) }
     )
+private suspend fun BehaviourContext.checkBanPluginEnabled(
+    sourceMessage: Message,
+    chatSettings: ChatSettings?
+): Boolean {
+    if (chatSettings ?.enabled == false) {
+        reply(
+            sourceMessage,
+            buildEntities(" ") {
+                +"Ban plugin is disabled in this chat. Use"
+                botCommand(enableCommand)
+                +"to enable ban plugin"
+            }
+        )
+        return false
+    }
+    return true
+}
 
 @Serializable
 class BanPlugin : Plugin {
@@ -88,6 +109,14 @@ class BanPlugin : Plugin {
         BotCommand(
             countWarningsCommand,
             "Use with reply (or just call to get know about you) to get warnings count"
+        ),
+        BotCommand(
+            disableCommand,
+            "Disable ban plugin for current chat"
+        ),
+        BotCommand(
+            enableCommand,
+            "Disable ban plugin for current chat"
         )
     )
 
@@ -107,12 +136,24 @@ class BanPlugin : Plugin {
                 }
             )
         }
+        suspend fun BehaviourContext.getChatSettings(
+            fromMessage: Message
+        ): ChatSettings? {
+            val chatSettings = chatsSettings.get(fromMessage.chat.id) ?: ChatSettings()
+            return if (!checkBanPluginEnabled(fromMessage, chatSettings)) {
+                null
+            } else {
+                chatSettings
+            }
+        }
 
         onCommand(
             warningCommandRegex,
             requireOnlyCommandInMessage = false
         ) { commandMessage ->
             if (commandMessage is GroupContentMessage<TextContent>) {
+                val chatSettings = getChatSettings(commandMessage) ?: return@onCommand
+
                 val admins = adminsApi.getChatAdmins(commandMessage.chat.id) ?: return@onCommand
                 val allowed = commandMessage is AnonymousGroupContentMessage ||
                     (commandMessage is CommonGroupContentMessage && admins.any { it.user.id == commandMessage.user.id })
@@ -121,7 +162,7 @@ class BanPlugin : Plugin {
                     val key = commandMessage.chat.id to userInReply.id
                     warningsRepository.add(key, commandMessage.messageId)
                     val warnings = warningsRepository.count(key)
-                    val settings = chatsSettings.get(commandMessage.chat.id) ?: ChatSettings().also {
+                    val settings = chatSettings ?: ChatSettings().also {
                         chatsSettings.set(commandMessage.chat.id, it)
                     }
                     if (warnings >= settings.warningsUntilBan) {
@@ -161,6 +202,8 @@ class BanPlugin : Plugin {
             requireOnlyCommandInMessage = false
         ) { commandMessage ->
             if (commandMessage is GroupContentMessage<TextContent>) {
+                val chatSettings = getChatSettings(commandMessage) ?: return@onCommand
+
                 val admins = adminsApi.getChatAdmins(commandMessage.chat.id) ?: return@onCommand
                 val allowed = commandMessage is AnonymousGroupContentMessage ||
                     (commandMessage is CommonGroupContentMessage && admins.any { it.user.id == commandMessage.user.id })
@@ -171,7 +214,7 @@ class BanPlugin : Plugin {
                     if (warnings.isNotEmpty()) {
                         warningsRepository.clear(key)
                         warningsRepository.add(key, warnings.dropLast(1))
-                        val settings = chatsSettings.get(commandMessage.chat.id) ?: ChatSettings().also {
+                        val settings = chatSettings ?: ChatSettings().also {
                             chatsSettings.set(commandMessage.chat.id, it)
                         }
                         sayUserHisWarnings(commandMessage, userInReply, settings, warnings.size - 1L)
@@ -194,6 +237,8 @@ class BanPlugin : Plugin {
             requireOnlyCommandInMessage = false
         ) { commandMessage ->
             if (commandMessage is GroupContentMessage<TextContent>) {
+                val chatSettings = getChatSettings(commandMessage) ?: return@onCommand
+
                 val admins = adminsApi.getChatAdmins(commandMessage.chat.id) ?: return@onCommand
                 val allowed = commandMessage is AnonymousGroupContentMessage ||
                     (commandMessage is CommonGroupContentMessage && admins.any { it.user.id == commandMessage.user.id })
@@ -217,7 +262,7 @@ class BanPlugin : Plugin {
                     return@onCommand
                 }
                 if (allowed) {
-                    val settings = chatsSettings.get(commandMessage.chat.id) ?: ChatSettings().also {
+                    val settings = chatSettings ?: ChatSettings().also {
                         chatsSettings.set(commandMessage.chat.id, it)
                     }
                     chatsSettings.set(
@@ -245,6 +290,9 @@ class BanPlugin : Plugin {
                 if (commandMessage is GroupContentMessage<TextContent>) {
                     val replyMessage = commandMessage.replyTo
                     val messageToSearch = replyMessage ?: commandMessage
+
+                    val chatSettings = getChatSettings(messageToSearch) ?: return@launchSafelyWithoutExceptions
+
                     val user = when (messageToSearch) {
                         is CommonGroupContentMessage<*> -> messageToSearch.user
                         else -> {
@@ -253,11 +301,57 @@ class BanPlugin : Plugin {
                         }
                     }
                     val count = warningsRepository.count(messageToSearch.chat.id to user.id)
-                    val maxCount = (chatsSettings.get(messageToSearch.chat.id) ?: ChatSettings()).warningsUntilBan
+                    val maxCount = (chatSettings ?: ChatSettings()).warningsUntilBan
                     reply(
                         commandMessage,
                         regular("User ") + user.mention("${user.firstName} ${user.lastName}") + " have " + bold("$count/$maxCount") + " (" + bold("${maxCount - count}") + " left until ban)"
                     )
+                }
+            }
+        }
+
+        onCommand(disableCommandRegex, requireOnlyCommandInMessage = true) { commandMessage ->
+            if (commandMessage is GroupContentMessage<TextContent>) {
+                val admins = adminsApi.getChatAdmins(commandMessage.chat.id) ?: return@onCommand
+                val allowed = commandMessage is AnonymousGroupContentMessage ||
+                    (commandMessage is CommonGroupContentMessage && admins.any { it.user.id == commandMessage.user.id })
+                if (!allowed) {
+                    reply(commandMessage, "You can't manage settings of ban plugin for this chat")
+                }
+                val chatSettings = chatsSettings.get(commandMessage.chat.id) ?: ChatSettings()
+                when (chatSettings.enabled) {
+                    true -> {
+                        chatsSettings.set(
+                            commandMessage.chat.id,
+                            chatSettings.copy(enabled = false)
+                        )
+                        reply(commandMessage, "Ban plugin has been disabled for this group")
+                    }
+                    false -> {
+                        reply(commandMessage, "Ban plugin already disabled for this group")
+                    }
+                }
+            }
+        }
+
+        onCommand(enableCommandRegex, requireOnlyCommandInMessage = true) { commandMessage ->
+            if (commandMessage is GroupContentMessage<TextContent>) {
+                val chatId = commandMessage.chat.id
+                val admins = adminsApi.getChatAdmins(chatId) ?: return@onCommand
+                val allowed = commandMessage is AnonymousGroupContentMessage ||
+                    (commandMessage is CommonGroupContentMessage && admins.any { it.user.id == commandMessage.user.id })
+                if (!allowed) {
+                    reply(commandMessage, "You can't manage settings of ban plugin for this chat")
+                }
+                val chatSettings = chatsSettings.get(chatId) ?: ChatSettings()
+                when (chatSettings.enabled) {
+                    false -> {
+                        chatsSettings.set(chatId, chatSettings.copy(enabled = true))
+                        reply(commandMessage, "Ban plugin has been enabled for this group")
+                    }
+                    true -> {
+                        reply(commandMessage, "Ban plugin already enabled for this group")
+                    }
                 }
             }
         }
