@@ -1,6 +1,7 @@
 package dev.inmo.plagubot.example
 
 import dev.inmo.micro_utils.coroutines.launchSafelyWithoutExceptions
+import dev.inmo.micro_utils.coroutines.safelyWithResult
 import dev.inmo.micro_utils.pagination.firstPageWithOneElementPagination
 import dev.inmo.micro_utils.repos.*
 import dev.inmo.micro_utils.repos.exposed.keyvalue.ExposedKeyValueRepo
@@ -8,7 +9,7 @@ import dev.inmo.micro_utils.repos.exposed.onetomany.ExposedOneToManyKeyValueRepo
 import dev.inmo.micro_utils.repos.mappers.withMapper
 import dev.inmo.plagubot.Plugin
 import dev.inmo.plagubot.config.database
-import dev.inmo.tgbotapi.extensions.api.chat.members.kickChatMember
+import dev.inmo.tgbotapi.extensions.api.chat.members.banChatMember
 import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommand
@@ -124,7 +125,15 @@ class BanPlugin : Plugin {
                         chatsSettings.set(commandMessage.chat.id, it)
                     }
                     if (warnings >= settings.warningsUntilBan) {
-                        kickChatMember(commandMessage.chat, userInReply)
+                        val banned = safelyWithResult {
+                            banChatMember(commandMessage.chat, userInReply)
+                        }.getOrNull() ?: false
+                        reply(
+                            commandMessage,
+                            buildEntities(" ") {
+                                +"User" + userInReply.mention(userInReply.name) + "has${if (banned) " " else " not "}been banned"
+                            }
+                        )
                     } else {
                         sayUserHisWarnings(commandMessage, userInReply, settings, warnings)
                     }
