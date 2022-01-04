@@ -12,6 +12,7 @@ import dev.inmo.tgbotapi.extensions.api.chat.members.banChatMember
 import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommand
+import dev.inmo.tgbotapi.extensions.behaviour_builder.utils.marker_factories.ByUserMessageMarkerFactory
 import dev.inmo.tgbotapi.extensions.utils.formatting.*
 import dev.inmo.tgbotapi.libraries.cache.admins.adminsPlugin
 import dev.inmo.tgbotapi.types.*
@@ -234,7 +235,8 @@ class BanPlugin : Plugin {
         }
         onCommand(
             setChatWarningsCountCommandRegex,
-            requireOnlyCommandInMessage = false
+            requireOnlyCommandInMessage = false,
+            markerFactory = ByUserMessageMarkerFactory
         ) { commandMessage ->
             if (commandMessage is GroupContentMessage<TextContent>) {
                 val chatSettings = getChatSettings(commandMessage) ?: return@onCommand
@@ -284,29 +286,25 @@ class BanPlugin : Plugin {
 
         onCommand(
             countWarningsCommand,
-            requireOnlyCommandInMessage = true
+            requireOnlyCommandInMessage = true,
+            markerFactory = ByUserMessageMarkerFactory
         ) { commandMessage ->
-            launchSafelyWithoutExceptions {
-                if (commandMessage is GroupContentMessage<TextContent>) {
-                    val replyMessage = commandMessage.replyTo
-                    val messageToSearch = replyMessage ?: commandMessage
-
-                    val chatSettings = getChatSettings(messageToSearch) ?: return@launchSafelyWithoutExceptions
-
-                    val user = when (messageToSearch) {
-                        is CommonGroupContentMessage<*> -> messageToSearch.user
-                        else -> {
-                            reply(commandMessage, buildEntities { regular("Only common messages of users are allowed in reply for this command and to be called with this command") })
-                            return@launchSafelyWithoutExceptions
-                        }
+            if (commandMessage is GroupContentMessage<TextContent>) {
+                val replyMessage = commandMessage.replyTo
+                val messageToSearch = replyMessage ?: commandMessage
+                val user = when (messageToSearch) {
+                    is CommonGroupContentMessage<*> -> messageToSearch.user
+                    else -> {
+                        reply(commandMessage, buildEntities { regular("Only common messages of users are allowed in reply for this command and to be called with this command") })
+                        return@onCommand
                     }
-                    val count = warningsRepository.count(messageToSearch.chat.id to user.id)
-                    val maxCount = (chatSettings ?: ChatSettings()).warningsUntilBan
-                    reply(
-                        commandMessage,
-                        regular("User ") + user.mention("${user.firstName} ${user.lastName}") + " have " + bold("$count/$maxCount") + " (" + bold("${maxCount - count}") + " left until ban)"
-                    )
                 }
+                val count = warningsRepository.count(messageToSearch.chat.id to user.id)
+                val maxCount = (chatsSettings.get(messageToSearch.chat.id) ?: ChatSettings()).warningsUntilBan
+                reply(
+                    commandMessage,
+                    regular("User ") + user.mention("${user.firstName} ${user.lastName}") + " have " + bold("$count/$maxCount") + " (" + bold("${maxCount - count}") + " left until ban)"
+                )
             }
         }
 
@@ -317,6 +315,7 @@ class BanPlugin : Plugin {
                     (commandMessage is CommonGroupContentMessage && admins.any { it.user.id == commandMessage.user.id })
                 if (!allowed) {
                     reply(commandMessage, "You can't manage settings of ban plugin for this chat")
+                    return@onCommand
                 }
                 val chatSettings = chatsSettings.get(commandMessage.chat.id) ?: ChatSettings()
                 when (chatSettings.enabled) {
@@ -342,6 +341,7 @@ class BanPlugin : Plugin {
                     (commandMessage is CommonGroupContentMessage && admins.any { it.user.id == commandMessage.user.id })
                 if (!allowed) {
                     reply(commandMessage, "You can't manage settings of ban plugin for this chat")
+                    return@onCommand
                 }
                 val chatSettings = chatsSettings.get(chatId) ?: ChatSettings()
                 when (chatSettings.enabled) {

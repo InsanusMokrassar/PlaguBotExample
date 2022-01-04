@@ -4,6 +4,7 @@ import dev.inmo.plagubot.Plugin
 import dev.inmo.tgbotapi.extensions.api.answers.answerInlineQuery
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onBaseInlineQuery
+import dev.inmo.tgbotapi.extensions.behaviour_builder.utils.marker_factories.ByUserInlineQueryMarkerFactory
 import dev.inmo.tgbotapi.types.*
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.abstracts.InlineQueryResult
 import kotlinx.serialization.Contextual
@@ -41,7 +42,9 @@ class InlineBusPlugin(
             it.run { createParts(database, params) }
         } + params.values.filterIsInstance<InlineBusPluginPart>()
 
-        onBaseInlineQuery {
+        onBaseInlineQuery(
+            markerFactory = ByUserInlineQueryMarkerFactory
+        ) {
             val results = mutableListOf<InlineQueryResult>()
 
             val page = it.offset.toIntOrNull() ?: 0
