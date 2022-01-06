@@ -11,9 +11,10 @@ import dev.inmo.plagubot.config.database
 import dev.inmo.tgbotapi.extensions.api.chat.members.banChatMember
 import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
-import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommand
+import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.*
 import dev.inmo.tgbotapi.extensions.behaviour_builder.utils.marker_factories.ByUserMessageMarkerFactory
 import dev.inmo.tgbotapi.extensions.utils.formatting.*
+import dev.inmo.tgbotapi.extensions.utils.types.buttons.*
 import dev.inmo.tgbotapi.libraries.cache.admins.adminsPlugin
 import dev.inmo.tgbotapi.libraries.cache.admins.doAfterVerification
 import dev.inmo.tgbotapi.types.*
@@ -311,49 +312,39 @@ class BanPlugin : Plugin {
 
         onCommand(disableCommandRegex, requireOnlyCommandInMessage = true) { commandMessage ->
             if (commandMessage is GroupContentMessage<TextContent>) {
-                val admins = adminsApi.getChatAdmins(commandMessage.chat.id) ?: return@onCommand
-                val allowed = commandMessage is AnonymousGroupContentMessage ||
-                    (commandMessage is CommonGroupContentMessage && admins.any { it.user.id == commandMessage.user.id })
-                if (!allowed) {
-                    reply(commandMessage, "You can't manage settings of ban plugin for this chat")
-                    return@onCommand
-                }
-                val chatSettings = chatsSettings.get(commandMessage.chat.id) ?: ChatSettings()
-                when (chatSettings.enabled) {
-                    true -> {
-                        chatsSettings.set(
-                            commandMessage.chat.id,
-                            chatSettings.copy(enabled = false)
-                        )
-                        reply(commandMessage, "Ban plugin has been disabled for this group")
+                commandMessage.doAfterVerification(adminsApi) {
+                    val chatSettings = chatsSettings.get(commandMessage.chat.id) ?: ChatSettings()
+                    when (chatSettings.enabled) {
+                        true -> {
+                            chatsSettings.set(
+                                commandMessage.chat.id,
+                                chatSettings.copy(enabled = false)
+                            )
+                            reply(commandMessage, "Ban plugin has been disabled for this group")
+                        }
+                        false -> {
+                            reply(commandMessage, "Ban plugin already disabled for this group")
+                        }
                     }
-                    false -> {
-                        reply(commandMessage, "Ban plugin already disabled for this group")
-                    }
-                }
+                } ?: reply(commandMessage, "You can't manage settings of ban plugin for this chat")
             }
         }
 
         onCommand(enableCommandRegex, requireOnlyCommandInMessage = true) { commandMessage ->
             if (commandMessage is GroupContentMessage<TextContent>) {
-                val chatId = commandMessage.chat.id
-                val admins = adminsApi.getChatAdmins(chatId) ?: return@onCommand
-                val allowed = commandMessage is AnonymousGroupContentMessage ||
-                    (commandMessage is CommonGroupContentMessage && admins.any { it.user.id == commandMessage.user.id })
-                if (!allowed) {
-                    reply(commandMessage, "You can't manage settings of ban plugin for this chat")
-                    return@onCommand
-                }
-                val chatSettings = chatsSettings.get(chatId) ?: ChatSettings()
-                when (chatSettings.enabled) {
-                    false -> {
-                        chatsSettings.set(chatId, chatSettings.copy(enabled = true))
-                        reply(commandMessage, "Ban plugin has been enabled for this group")
+                commandMessage.doAfterVerification(adminsApi) {
+                    val chatId = commandMessage.chat.id
+                    val chatSettings = chatsSettings.get(chatId) ?: ChatSettings()
+                    when (chatSettings.enabled) {
+                        false -> {
+                            chatsSettings.set(chatId, chatSettings.copy(enabled = true))
+                            reply(commandMessage, "Ban plugin has been enabled for this group")
+                        }
+                        true -> {
+                            reply(commandMessage, "Ban plugin already enabled for this group")
+                        }
                     }
-                    true -> {
-                        reply(commandMessage, "Ban plugin already enabled for this group")
-                    }
-                }
+                } ?: reply(commandMessage, "You can't manage settings of ban plugin for this chat")
             }
         }
     }
