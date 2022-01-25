@@ -9,6 +9,7 @@ import dev.inmo.micro_utils.repos.mappers.withMapper
 import dev.inmo.micro_utils.serialization.typed_serializer.TypedSerializer
 import dev.inmo.plagubot.Plugin
 import dev.inmo.plagubot.config.database
+import dev.inmo.tgbotapi.extensions.api.answers.answer
 import dev.inmo.tgbotapi.extensions.api.chat.members.banChatMember
 import dev.inmo.tgbotapi.extensions.api.edit.caption.editMessageCaption
 import dev.inmo.tgbotapi.extensions.api.edit.text.editMessageText
@@ -18,6 +19,7 @@ import dev.inmo.tgbotapi.extensions.behaviour_builder.expectations.waitMessageDa
 import dev.inmo.tgbotapi.extensions.behaviour_builder.oneOf
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.*
 import dev.inmo.tgbotapi.extensions.behaviour_builder.utils.marker_factories.ByUserMessageMarkerFactory
+import dev.inmo.tgbotapi.extensions.utils.asFromUser
 import dev.inmo.tgbotapi.extensions.utils.formatting.*
 import dev.inmo.tgbotapi.extensions.utils.types.buttons.*
 import dev.inmo.tgbotapi.libraries.cache.admins.adminsPlugin
@@ -188,7 +190,7 @@ class BanPlugin : Plugin {
         ),
         BotCommand(
             enableCommand,
-            "Disable ban plugin for current chat"
+            "Enable ban plugin for current chat"
         )
     )
 
@@ -411,6 +413,15 @@ class BanPlugin : Plugin {
                                         filter = {
                                             it.message.messageId == messageWithKeyboard.messageId &&
                                                 it.message.chat.id == messageWithKeyboard.chat.id &&
+                                                (if (commandMessage is AnonymousGroupContentMessage<*>) {
+                                                    adminsApi.isAdmin(it.message.chat.id, it.user.id)
+                                                } else {
+                                                    it.user.id == commandMessage.asFromUser() ?.user ?.id
+                                                }).also { userAllowed ->
+                                                    if (!userAllowed) {
+                                                        answer(it, "You are not allowed for this action", showAlert = true)
+                                                    }
+                                                } &&
                                                 (it.data == disableForUsers || it.data == disableForAdmins || it.data == disableForAll)
                                         }
                                     ).firstOrNull() ?.data
@@ -479,15 +490,6 @@ class BanPlugin : Plugin {
                 commandMessage.doAfterVerification(adminsApi) {
                     val chatId = commandMessage.chat.id
                     val chatSettings = chatsSettings.get(chatId) ?: ChatSettings()
-                    when (chatSettings.workMode !is WorkMode.Disabled) {
-                        false -> {
-                            chatsSettings.set(chatId, chatSettings.copy(workMode = WorkMode.Enabled))
-                            reply(commandMessage, "Ban plugin has been enabled for this group")
-                        }
-                        true -> {
-                            reply(commandMessage, "Ban plugin already enabled for this group")
-                        }
-                    }
                     when (chatSettings.workMode) {
                         WorkMode.Enabled -> {
                             reply(commandMessage, "Ban plugin already enabled for this group")
@@ -515,6 +517,15 @@ class BanPlugin : Plugin {
                                         filter = {
                                             it.message.messageId == messageWithKeyboard.messageId &&
                                                 it.message.chat.id == messageWithKeyboard.chat.id &&
+                                                (if (commandMessage is AnonymousGroupContentMessage<*>) {
+                                                    adminsApi.isAdmin(it.message.chat.id, it.user.id)
+                                                } else {
+                                                    it.user.id == commandMessage.asFromUser() ?.user ?.id
+                                                }).also { userAllowed ->
+                                                    if (!userAllowed) {
+                                                        answer(it, "You are not allowed for this action", showAlert = true)
+                                                    }
+                                                } &&
                                                 (it.data == enableForUsers || it.data == enableForAdmins || it.data == enableForAll)
                                         }
                                     ).firstOrNull() ?.data
