@@ -13,5 +13,7 @@ local.properties
 secret.gradle
 
 config.json
+local.*
+local/
 Dockerfile
 deploy

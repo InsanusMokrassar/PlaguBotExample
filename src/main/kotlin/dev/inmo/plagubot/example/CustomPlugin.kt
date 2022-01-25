@@ -2,6 +2,7 @@ package dev.inmo.plagubot.example
 
 import dev.inmo.micro_utils.coroutines.*
 import dev.inmo.plagubot.Plugin
+import dev.inmo.tgbotapi.extensions.api.bot.getMe
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
 import dev.inmo.tgbotapi.extensions.utils.updates.retrieving.retrieveAccumulatedUpdates
 import kotlinx.coroutines.flow.onEach
@@ -26,5 +27,6 @@ class CustomPlugin(
             it.printStackTrace()
             currentDefaultSafelyExceptionHandler(it)
         }
+        println(getMe())
     }
 }
