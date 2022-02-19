@@ -1,17 +1,16 @@
 package dev.inmo.plagubot.example
 
 import com.benasher44.uuid.uuid4
-import dev.inmo.micro_utils.coroutines.safelyWithResult
+import dev.inmo.micro_utils.coroutines.*
 import dev.inmo.micro_utils.repos.*
 import dev.inmo.micro_utils.repos.exposed.keyvalue.ExposedKeyValueRepo
 import dev.inmo.micro_utils.repos.exposed.onetomany.ExposedOneToManyKeyValueRepo
 import dev.inmo.micro_utils.repos.mappers.withMapper
-import dev.inmo.micro_utils.serialization.typed_serializer.TypedSerializer
 import dev.inmo.plagubot.Plugin
 import dev.inmo.plagubot.config.database
+import dev.inmo.tgbotapi.CommonAbstracts.FromUser
 import dev.inmo.tgbotapi.extensions.api.answers.answer
 import dev.inmo.tgbotapi.extensions.api.chat.members.banChatMember
-import dev.inmo.tgbotapi.extensions.api.edit.caption.editMessageCaption
 import dev.inmo.tgbotapi.extensions.api.edit.text.editMessageText
 import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
@@ -28,8 +27,7 @@ import dev.inmo.tgbotapi.types.*
 import dev.inmo.tgbotapi.types.MessageEntity.textsources.*
 import dev.inmo.tgbotapi.types.message.abstracts.*
 import dev.inmo.tgbotapi.types.message.content.TextContent
-import kotlinx.coroutines.async
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.SerializersModule
@@ -39,6 +37,7 @@ import org.jetbrains.exposed.sql.Database
 private val disableCommandRegex = Regex("disable_ban_plugin")
 private val enableCommandRegex = Regex("enable_ban_plugin")
 private val warningCommandRegex = Regex("warn(ing)?")
+private val banCommandRegex = Regex("ban")
 private val unwarningCommandRegex = Regex("unwarn(ing)?")
 private val setChatWarningsCountCommandRegex = Regex("set_chat_warnings_count")
 private val setChatWarningsCountCommand = "set_chat_warnings_count"
@@ -53,6 +52,7 @@ private val unwarningCommands = listOf(
 private const val countWarningsCommand = "ban_count_warns"
 private const val disableCommand = "disable_ban_plugin"
 private const val enableCommand = "enable_ban_plugin"
+private const val banCommand = "ban"
 
 @Polymorphic
 sealed interface WorkMode {
@@ -191,6 +191,10 @@ class BanPlugin : Plugin {
         BotCommand(
             enableCommand,
             "Enable ban plugin for current chat"
+        ),
+        BotCommand(
+            banCommand,
+            "Ban user in reply"
         )
     )
 
@@ -586,6 +590,38 @@ class BanPlugin : Plugin {
                         }
                     }
                 } ?: reply(commandMessage, "You can't manage settings of ban plugin for this chat")
+            }
+        }
+
+        onCommand(banCommandRegex, requireOnlyCommandInMessage = true) { commandMessage ->
+            if (commandMessage is GroupContentMessage<TextContent>) {
+                commandMessage.doAfterVerification(adminsApi) {
+                    val chatId = commandMessage.chat.id
+                    val chatSettings = chatsSettings.get(chatId) ?: ChatSettings()
+                    if (chatSettings.workMode is WorkMode.EnabledForAdmins) {
+
+                        val userInReply = when (val reply = commandMessage.replyTo) {
+                            is FromUser -> reply.from
+                            else -> {
+                                reply(commandMessage, "Use with reply to some message for user ban")
+                                return@doAfterVerification
+                            }
+                        }
+
+                        val banned = safelyWithResult {
+                            banChatMember(commandMessage.chat, userInReply)
+                        }.getOrNull()
+
+                        if (banned == true) {
+                            reply(
+                                commandMessage,
+                                buildEntities {
+                                    +"User " + mention(userInReply) + " has been banned"
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
 
