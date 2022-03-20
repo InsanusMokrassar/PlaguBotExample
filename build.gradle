@@ -1,6 +1,6 @@
 buildscript {
     repositories {
-        jcenter()
+        mavenCentral()
     }
 
     dependencies {
@@ -22,7 +22,6 @@ Object GithubPackagesCredsClosure = {
 }
 
 repositories {
-    jcenter()
     mavenCentral()
     mavenLocal()
     maven { url 'https://jitpack.io' }
@@ -40,7 +39,7 @@ dependencies {
     implementation "dev.inmo:plagubot.plugins.captcha:$captcha_version"
     implementation "dev.inmo:micro_utils.repos.exposed:$micro_utils_version"
 
-    // implementation "dev.inmo:tgbotapi:$tgbotapi_version"
+     implementation "dev.inmo:tgbotapi:$tgbotapi_version"
 
     implementation "com.github.matfax.klassindex:library:$klassindex_version"
     kapt "com.github.matfax.klassindex:processor:$klassindex_version"
