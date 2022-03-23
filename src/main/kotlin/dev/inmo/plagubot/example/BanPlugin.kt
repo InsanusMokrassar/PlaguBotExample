@@ -1,6 +1,7 @@
 package dev.inmo.plagubot.example
 
 import com.benasher44.uuid.uuid4
+import dev.inmo.micro_utils.common.*
 import dev.inmo.micro_utils.coroutines.*
 import dev.inmo.micro_utils.repos.*
 import dev.inmo.micro_utils.repos.exposed.keyvalue.ExposedKeyValueRepo
@@ -11,6 +12,7 @@ import dev.inmo.plagubot.config.database
 import dev.inmo.tgbotapi.CommonAbstracts.FromUser
 import dev.inmo.tgbotapi.extensions.api.answers.answer
 import dev.inmo.tgbotapi.extensions.api.chat.members.banChatMember
+import dev.inmo.tgbotapi.extensions.api.chat.members.banChatSenderChat
 import dev.inmo.tgbotapi.extensions.api.edit.text.editMessageText
 import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
@@ -19,12 +21,14 @@ import dev.inmo.tgbotapi.extensions.behaviour_builder.oneOf
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.*
 import dev.inmo.tgbotapi.extensions.behaviour_builder.utils.marker_factories.ByUserMessageMarkerFactory
 import dev.inmo.tgbotapi.extensions.utils.asFromUser
+import dev.inmo.tgbotapi.extensions.utils.asUser
 import dev.inmo.tgbotapi.extensions.utils.formatting.*
 import dev.inmo.tgbotapi.extensions.utils.types.buttons.*
 import dev.inmo.tgbotapi.libraries.cache.admins.adminsPlugin
 import dev.inmo.tgbotapi.libraries.cache.admins.doAfterVerification
 import dev.inmo.tgbotapi.types.*
 import dev.inmo.tgbotapi.types.MessageEntity.textsources.*
+import dev.inmo.tgbotapi.types.chat.abstracts.ChannelChat
 import dev.inmo.tgbotapi.types.message.abstracts.*
 import dev.inmo.tgbotapi.types.message.content.TextContent
 import kotlinx.coroutines.*
@@ -203,11 +207,15 @@ class BanPlugin : Plugin {
         val warningsRepository = database.warningsTable
         val chatsSettings = database.chatsSettingsTable
 
-        suspend fun sayUserHisWarnings(message: Message, userInReply: User, settings: ChatSettings, warnings: Long) {
+        suspend fun sayUserHisWarnings(message: Message, userInReply: Either<User, ChannelChat>, settings: ChatSettings, warnings: Long) {
             reply(
                 message,
                 buildEntities {
-                    mention("${userInReply.lastName}  ${userInReply.firstName}", userInReply)
+                    userInReply.onFirst { userInReply ->
+                        mention("${userInReply.lastName}  ${userInReply.firstName}", userInReply)
+                    }.onSecond {
+                        +it.title
+                    }
                     regular(" You have ")
                     bold("${settings.warningsUntilBan - warnings}")
                     regular(" warnings until ban")
@@ -236,26 +244,44 @@ class BanPlugin : Plugin {
                     (commandMessage is CommonGroupContentMessage && admins.any { it.user.id == commandMessage.user.id })
                 val chatSettings = getChatSettings(commandMessage, sentByAdmin) ?: return@onCommand
 
-                val userInReply = (commandMessage.replyTo as? CommonGroupContentMessage<*>) ?.user ?: return@onCommand // add handling
+                val userInReply = (commandMessage.replyTo as? CommonGroupContentMessage<*>) ?.user
+                val channelInReply = (commandMessage.replyTo as? UnconnectedFromChannelGroupContentMessage<*>) ?.channel
+                val chatId = userInReply ?.id ?: channelInReply ?.id ?: return@onCommand // add handling
+
                 if (sentByAdmin) {
-                    val key = commandMessage.chat.id to userInReply.id
+                    val key = commandMessage.chat.id to chatId
                     warningsRepository.add(key, commandMessage.messageId)
                     val warnings = warningsRepository.count(key)
                     val settings = chatSettings ?: ChatSettings().also {
                         chatsSettings.set(commandMessage.chat.id, it)
                     }
                     if (warnings >= settings.warningsUntilBan) {
-                        val banned = safelyWithResult {
-                            banChatMember(commandMessage.chat, userInReply)
-                        }.getOrNull() ?: false
-                        reply(
-                            commandMessage,
-                            buildEntities(" ") {
-                                +"User" + userInReply.mention(userInReply.name) + "has${if (banned) " " else " not "}been banned"
+                        when {
+                            userInReply != null -> {
+                                val banned = safelyWithResult {
+                                    banChatMember(commandMessage.chat, userInReply)
+                                }.isSuccess
+                                reply(
+                                    commandMessage,
+                                    buildEntities(" ") {
+                                        +"User" + userInReply.mention(userInReply.name) + "has${if (banned) " " else " not "}been banned"
+                                    }
+                                )
                             }
-                        )
+                            channelInReply != null -> {
+                                val banned = safelyWithResult {
+                                    banChatSenderChat(commandMessage.chat, channelInReply.id)
+                                }.isSuccess
+                                reply(
+                                    commandMessage,
+                                    buildEntities(" ") {
+                                        +"Channel ${channelInReply.title} has${if (banned) " " else " not "}been banned"
+                                    }
+                                )
+                            }
+                        }
                     } else {
-                        sayUserHisWarnings(commandMessage, userInReply, settings, warnings)
+                        sayUserHisWarnings(commandMessage, (userInReply ?: channelInReply) ?.either() ?: return@onCommand, settings, warnings)
                     }
                 } else {
                     reply(
@@ -286,21 +312,22 @@ class BanPlugin : Plugin {
                     (commandMessage is CommonGroupContentMessage && admins.any { it.user.id == commandMessage.user.id })
                 val chatSettings = getChatSettings(commandMessage, sentByAdmin) ?: return@onCommand
 
-                val userInReply = (commandMessage.replyTo as? CommonGroupContentMessage<*>) ?.user ?: return@onCommand // add handling
+                val userInReply = (commandMessage.replyTo as? CommonGroupContentMessage<*>) ?.user
+                val channelInReply = (commandMessage.replyTo as? UnconnectedFromChannelGroupContentMessage<*>) ?.channel
+                val chatId = userInReply ?.id ?: channelInReply ?.id ?: return@onCommand // add handling
+                val userOrChannel: Either<User, ChannelChat> = (userInReply ?: channelInReply) ?.either() ?: return@onCommand
+
                 if (sentByAdmin) {
-                    val key = commandMessage.chat.id to userInReply.id
+                    val key = commandMessage.chat.id to chatId
                     val warnings = warningsRepository.getAll(key)
                     if (warnings.isNotEmpty()) {
                         warningsRepository.clear(key)
                         warningsRepository.add(key, warnings.dropLast(1))
-                        val settings = chatSettings ?: ChatSettings().also {
-                            chatsSettings.set(commandMessage.chat.id, it)
-                        }
-                        sayUserHisWarnings(commandMessage, userInReply, settings, warnings.size - 1L)
+                        sayUserHisWarnings(commandMessage, userOrChannel, chatSettings, warnings.size - 1L)
                     } else {
                         reply(
                             commandMessage,
-                            listOf(regular("User have no warns"))
+                            listOf(regular("User or channel have no warns"))
                         )
                     }
                 } else {
@@ -342,12 +369,9 @@ class BanPlugin : Plugin {
                     return@onCommand
                 }
                 if (sentByAdmin) {
-                    val settings = chatSettings ?: ChatSettings().also {
-                        chatsSettings.set(commandMessage.chat.id, it)
-                    }
                     chatsSettings.set(
                         commandMessage.chat.id,
-                        settings.copy(warningsUntilBan = newCount)
+                        chatSettings.copy(warningsUntilBan = newCount)
                     )
                     reply(
                         commandMessage,
@@ -372,6 +396,7 @@ class BanPlugin : Plugin {
                 val messageToSearch = replyMessage ?: commandMessage
                 val user = when (messageToSearch) {
                     is CommonGroupContentMessage<*> -> messageToSearch.user
+                    is UnconnectedFromChannelGroupContentMessage<*> -> messageToSearch.channel
                     else -> {
                         reply(commandMessage, buildEntities { regular("Only common messages of users are allowed in reply for this command and to be called with this command") })
                         return@onCommand
@@ -379,9 +404,12 @@ class BanPlugin : Plugin {
                 }
                 val count = warningsRepository.count(messageToSearch.chat.id to user.id)
                 val maxCount = (chatsSettings.get(messageToSearch.chat.id) ?: ChatSettings()).warningsUntilBan
+                val mention = (user.asUser()) ?.let {
+                    it.mention("${it.firstName} ${it.lastName}")
+                } ?: (user as? ChannelChat) ?.title ?.let(::regular) ?: return@onCommand
                 reply(
                     commandMessage,
-                    regular("User ") + user.mention("${user.firstName} ${user.lastName}") + " have " + bold("$count/$maxCount") + " (" + bold("${maxCount - count}") + " left until ban)"
+                    regular("User ") + mention + " have " + bold("$count/$maxCount") + " (" + bold("${maxCount - count}") + " left until ban)"
                 )
             }
         }
@@ -600,23 +628,34 @@ class BanPlugin : Plugin {
                     val chatSettings = chatsSettings.get(chatId) ?: ChatSettings()
                     if (chatSettings.workMode is WorkMode.EnabledForAdmins) {
 
-                        val userInReply = when (val reply = commandMessage.replyTo) {
+                        val userInReply: Either<User, ChannelChat> = when (val reply = commandMessage.replyTo) {
                             is FromUser -> reply.from
+                            is UnconnectedFromChannelGroupContentMessage<*> -> reply.channel
                             else -> {
                                 reply(commandMessage, "Use with reply to some message for user ban")
                                 return@doAfterVerification
                             }
-                        }
+                        }.either()
+
 
                         val banned = safelyWithResult {
-                            banChatMember(commandMessage.chat, userInReply)
-                        }.getOrNull()
+                            userInReply.onFirst {
+                                banChatMember(commandMessage.chat, it.id)
+                            }.onSecond {
+                                banChatSenderChat(commandMessage.chat, it.id)
+                            }
+                        }.isSuccess
 
-                        if (banned == true) {
+                        if (banned) {
+                            val mention = userInReply.mapOnFirst {
+                                mention(it)
+                            } ?: userInReply.mapOnSecond {
+                                regular(it.title)
+                            } ?: return@doAfterVerification
                             reply(
                                 commandMessage,
                                 buildEntities {
-                                    +"User " + mention(userInReply) + " has been banned"
+                                    +"User " + mention + " has been banned"
                                 }
                             )
                         }
