@@ -1,0 +1,18 @@
+{
+  "botToken": "5453467366:AAQ56fl0NZ99U-b7SR7PW5UR6OQRpE111",
+  "plugins": [
+    "admins",
+    {"type": "dev.inmo.plagubot.example.BanPlugin"},
+    {"type": "dev.inmo.plagubot.example.CustomPlugin"},
+    {"type": "dev.inmo.plagubot.plugins.captcha.CaptchaBotPlugin"}
+  ],
+  "params": {
+    "defaultDatabase": [
+      "dev.inmo.plagubot.config.DatabaseConfig",
+      {
+        "url": "jdbc:sqlite:memory"
+      }
+    ],
+    "admins": {"type": "dev.inmo.tgbotapi.libraries.cache.admins.AdminsPlugin"}
+  }
+}
