@@ -1,5 +1,5 @@
 {
-  "botToken": "5453467366:AAQ56fl0NZ99U-b7SR7PW5UR6OQRpE111",
+  "botToken": "1234567890:ABCDEFGHIJKLMNOP_qrstuvwxyz12345678",
   "plugins": [
     "admins",
     {"type": "dev.inmo.plagubot.example.BanPlugin"},
