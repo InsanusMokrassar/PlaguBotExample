@@ -10,7 +10,7 @@
     "defaultDatabase": [
       "dev.inmo.plagubot.config.DatabaseConfig",
       {
-        "url": "jdbc:sqlite:memory"
+        "url": "jdbc:sqlite:local.db"
       }
     ],
     "admins": {"type": "dev.inmo.tgbotapi.libraries.cache.admins.AdminsPlugin"},
