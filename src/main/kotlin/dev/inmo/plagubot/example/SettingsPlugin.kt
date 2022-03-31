@@ -62,16 +62,24 @@ class SettingsPlugin : SettingsProvider, Plugin{
     override suspend fun BehaviourContext.invoke(database: Database, params: Map<String, Any>) {
         val adminsApi = params.adminsPlugin ?.adminsAPI(params.database ?: return) ?: return
         onCommand("settings") { commandMessage ->
-            val verified = commandMessage.doAfterVerification(adminsApi){
+            val verified = commandMessage.doAfterVerification(adminsApi) {
                 commandMessage.whenFromUser {
-                    sendTextMessage(
-                        it.user.id,
-                        buildEntities {
-                            +"Settings for chat "
-                            code(commandMessage.chat.requireGroupChat().title)
-                        },
-                        replyMarkup = createProvidersInlineKeyboard(commandMessage.chat.id)
-                    )
+                    runCatching {
+                        sendTextMessage(
+                            it.user.id,
+                            buildEntities {
+                                +"Settings for chat "
+                                code(commandMessage.chat.requireGroupChat().title)
+                            },
+                            replyMarkup = createProvidersInlineKeyboard(commandMessage.chat.id)
+                        )
+                    }.onFailure {
+                        it.printStackTrace()
+                        reply(
+                            commandMessage,
+                            "Looks like you didn't started the bot. Please start bot and try again"
+                        )
+                    }
                 }
                 true
             }
