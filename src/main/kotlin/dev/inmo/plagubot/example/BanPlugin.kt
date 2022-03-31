@@ -13,6 +13,7 @@ import dev.inmo.tgbotapi.CommonAbstracts.FromUser
 import dev.inmo.tgbotapi.extensions.api.answers.answer
 import dev.inmo.tgbotapi.extensions.api.chat.members.banChatMember
 import dev.inmo.tgbotapi.extensions.api.chat.members.banChatSenderChat
+import dev.inmo.tgbotapi.extensions.api.edit.ReplyMarkup.editMessageReplyMarkup
 import dev.inmo.tgbotapi.extensions.api.edit.text.editMessageText
 import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
@@ -24,6 +25,7 @@ import dev.inmo.tgbotapi.extensions.utils.asFromUser
 import dev.inmo.tgbotapi.extensions.utils.asUser
 import dev.inmo.tgbotapi.extensions.utils.formatting.*
 import dev.inmo.tgbotapi.extensions.utils.types.buttons.*
+import dev.inmo.tgbotapi.extensions.utils.whenFromUser
 import dev.inmo.tgbotapi.libraries.cache.admins.adminsPlugin
 import dev.inmo.tgbotapi.libraries.cache.admins.doAfterVerification
 import dev.inmo.tgbotapi.types.*
@@ -206,7 +208,42 @@ class BanPlugin : Plugin {
         val adminsApi = params.adminsPlugin ?.adminsAPI(params.database ?: return) ?: return
         val warningsRepository = database.warningsTable
         val chatsSettings = database.chatsSettingsTable
+        val settingsPlugin = params.settingsPlugin
 
+        if (settingsPlugin != null){
+            val settingsProvider = object : SettingsProvider{
+                override val name: String
+                    get() = "BanPlugin"
+                override val id: String
+                    get() = "BanPlugin"
+
+                override suspend fun BehaviourContext.drawSettings(
+                    chatId: ChatId,
+                    userId: UserId,
+                    messageId: MessageIdentifier
+                ) {
+                    val banSettingsPlugin = chatsSettings.get(chatId) ?: ChatSettings()
+                    editMessageReplyMarkup(userId, messageId,
+                        replyMarkup = inlineKeyboard {
+                            row {
+                                when (banSettingsPlugin.workMode) {
+                                    WorkMode.Disabled -> {
+                                        val disablePlugin = uuid4().toString().take(12)
+                                        dataButton("❌ Disabled", disablePlugin)
+                                    }
+                                    WorkMode.Enabled -> {
+                                        val enablePlugin = uuid4().toString().take(12)
+                                        dataButton("✅ Enabled", enablePlugin)
+                                        }
+                                    }
+                                }
+
+                        })
+                }
+
+            }
+            settingsPlugin.register(settingsProvider)
+        }
         suspend fun sayUserHisWarnings(message: Message, userInReply: Either<User, ChannelChat>, settings: ChatSettings, warnings: Long) {
             reply(
                 message,

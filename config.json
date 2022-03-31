@@ -1,7 +1,7 @@
 {
   "botToken": "1234567890:ABCDEFGHIJKLMNOP_qrstuvwxyz12345678",
   "plugins": [
-    "admins",
+    "admins","settingsPlugin",
     {"type": "dev.inmo.plagubot.example.BanPlugin"},
     {"type": "dev.inmo.plagubot.example.CustomPlugin"},
     {"type": "dev.inmo.plagubot.plugins.captcha.CaptchaBotPlugin"}
@@ -13,6 +13,7 @@
         "url": "jdbc:sqlite:memory"
       }
     ],
-    "admins": {"type": "dev.inmo.tgbotapi.libraries.cache.admins.AdminsPlugin"}
+    "admins": {"type": "dev.inmo.tgbotapi.libraries.cache.admins.AdminsPlugin"},
+    "settingsPlugin": {"type": "dev.inmo.plagubot.example.SettingsPlugin"}
   }
 }
