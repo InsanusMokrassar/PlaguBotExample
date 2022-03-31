@@ -4,12 +4,15 @@ import dev.inmo.plagubot.*
 import dev.inmo.plagubot.config.database
 import dev.inmo.plagubot.example.utils.extractChatIdAndData
 import dev.inmo.plagubot.example.utils.settingsDataButton
+import dev.inmo.tgbotapi.extensions.api.chat.get.getChat
 import dev.inmo.tgbotapi.extensions.api.edit.ReplyMarkup.editMessageReplyMarkup
+import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.api.send.sendTextMessage
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommand
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onMessageDataCallbackQuery
 import dev.inmo.tgbotapi.extensions.utils.*
+import dev.inmo.tgbotapi.extensions.utils.formatting.*
 import dev.inmo.tgbotapi.extensions.utils.types.buttons.inlineKeyboard
 import dev.inmo.tgbotapi.extensions.utils.types.buttons.row
 import dev.inmo.tgbotapi.libraries.cache.admins.adminsPlugin
@@ -59,15 +62,23 @@ class SettingsPlugin : SettingsProvider, Plugin{
     override suspend fun BehaviourContext.invoke(database: Database, params: Map<String, Any>) {
         val adminsApi = params.adminsPlugin ?.adminsAPI(params.database ?: return) ?: return
         onCommand("settings") { commandMessage ->
-            commandMessage.doAfterVerification(adminsApi){
+            val verified = commandMessage.doAfterVerification(adminsApi){
                 commandMessage.whenFromUser {
                     sendTextMessage(
                         it.user.id,
-                        "Settings",
+                        buildEntities {
+                            +"Settings for chat "
+                            code(commandMessage.chat.requireGroupChat().title)
+                        },
                         replyMarkup = createProvidersInlineKeyboard(commandMessage.chat.id)
                     )
                 }
+                true
             }
+            if (verified == true) {
+                return@onCommand
+            }
+            reply(commandMessage, "Only admins may trigger settings")
         }
         onMessageDataCallbackQuery{
             val (chatId, provider) = extractChatIdAndProviderId(it.data)
@@ -78,8 +89,6 @@ class SettingsPlugin : SettingsProvider, Plugin{
                 drawSettings(chatId, it.user.id, it.message.messageId)
             }
         }
-        //Collecting and forwarding chat id and data
-
     }
 }
 

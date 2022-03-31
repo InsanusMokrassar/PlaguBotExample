@@ -239,6 +239,7 @@ class BanPlugin : Plugin {
                     val settings = chatsSettings.get(chatId) ?: ChatSettings()
 
                     if (!adminsApi.isAdmin(chatId, userId)) {
+                        editMessageText(userId, messageId, "Ban settings are not supported for common users")
                         return
                     }
 
@@ -368,12 +369,10 @@ class BanPlugin : Plugin {
                 )
 
                 with(settingsProvider) {
-                    val message = if (needNewMessage) {
+                    if (needNewMessage) {
                         reply(it.message, "Updated")
-                    } else {
-                        it.message
                     }
-                    drawSettings(chatId, userId, message.messageId)
+                    drawSettings(chatId, userId, it.message.messageId)
                 }
 
                 answer(it, "Settings have been updated")
