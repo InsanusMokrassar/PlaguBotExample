@@ -15,9 +15,11 @@ class CustomPlugin(
 ) : Plugin {
     override suspend fun BehaviourContext.invoke(database: Database, params: Map<String, Any>) {
         if (flushUpdates) {
+            println("Start flush updates")
             retrieveAccumulatedUpdates {
-                // just flush
+                println(it)// just flush
             }
+            println("Updates flushed")
         }
         allUpdatesFlow.subscribeSafelyWithoutExceptions(this) {
             println(it)

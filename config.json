@@ -3,7 +3,7 @@
   "plugins": [
     "admins","settingsPlugin",
     {"type": "dev.inmo.plagubot.example.BanPlugin"},
-    {"type": "dev.inmo.plagubot.example.CustomPlugin"},
+    {"type": "dev.inmo.plagubot.example.CustomPlugin", "flushUpdates": true},
     {"type": "dev.inmo.plagubot.plugins.captcha.CaptchaBotPlugin"}
   ],
   "params": {
