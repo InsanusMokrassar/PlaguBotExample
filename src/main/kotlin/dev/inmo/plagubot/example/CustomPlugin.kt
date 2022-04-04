@@ -18,7 +18,7 @@ class CustomPlugin(
             println("Start flush updates")
             retrieveAccumulatedUpdates {
                 println(it)// just flush
-            }
+            }.join()
             println("Updates flushed")
         }
         allUpdatesFlow.subscribeSafelyWithoutExceptions(this) {
