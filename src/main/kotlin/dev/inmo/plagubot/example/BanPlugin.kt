@@ -428,9 +428,10 @@ class BanPlugin : Plugin {
                         chatsSettings.set(commandMessage.chat.id, it)
                     }
                     if (warnings >= settings.warningsUntilBan) {
+                        var banned = false
                         when {
                             userInReply != null -> {
-                                val banned = safelyWithResult {
+                                banned = safelyWithResult {
                                     banChatMember(commandMessage.chat, userInReply)
                                 }.isSuccess
                                 reply(
@@ -441,7 +442,7 @@ class BanPlugin : Plugin {
                                 )
                             }
                             channelInReply != null -> {
-                                val banned = safelyWithResult {
+                                banned = safelyWithResult {
                                     banChatSenderChat(commandMessage.chat, channelInReply.id)
                                 }.isSuccess
                                 reply(
@@ -451,6 +452,9 @@ class BanPlugin : Plugin {
                                     }
                                 )
                             }
+                        }
+                        if (banned) {
+                            warningsRepository.clear(key)
                         }
                     } else {
                         sayUserHisWarnings(commandMessage, (userInReply ?: channelInReply) ?.either() ?: return@onCommand, settings, warnings)
@@ -799,6 +803,11 @@ class BanPlugin : Plugin {
                     val chatId = commandMessage.chat.id
                     val chatSettings = chatsSettings.get(chatId) ?: ChatSettings()
                     if (chatSettings.workMode is WorkMode.EnabledForAdmins) {
+                        val userInReplyMessage = (commandMessage.replyTo as? CommonGroupContentMessage<*>) ?.user
+                        // TODO() fix this in future userInReply check on top code cuz was no time, need sleep
+                        val channelInReply = (commandMessage.replyTo as? UnconnectedFromChannelGroupContentMessage<*>) ?.channel
+                        val chatUserId = userInReplyMessage ?.id ?: channelInReply ?.id ?: return@doAfterVerification
+                        val key = commandMessage.chat.id to chatUserId
 
                         val userInReply: Either<User, ChannelChat> = when (val reply = commandMessage.replyTo) {
                             is FromUser -> reply.from
@@ -809,7 +818,6 @@ class BanPlugin : Plugin {
                             }
                         }.either()
 
-
                         val banned = safelyWithResult {
                             userInReply.onFirst {
                                 banChatMember(commandMessage.chat, it.id)
@@ -819,8 +827,9 @@ class BanPlugin : Plugin {
                         }.isSuccess
 
                         if (banned) {
+                            warningsRepository.clear(key)
                             val mention = userInReply.mapOnFirst {
-                                mention(it)
+                                mention(it) // TODO("fix it in future no nickname in message from line: 840")
                             } ?: userInReply.mapOnSecond {
                                 regular(it.title)
                             } ?: return@doAfterVerification
