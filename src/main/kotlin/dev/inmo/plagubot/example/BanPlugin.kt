@@ -44,6 +44,7 @@ import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
 import org.jetbrains.exposed.sql.Database
 import org.koin.core.module.Module
+import org.koin.core.qualifier.named
 
 private val disableCommandRegex = Regex("disable_ban_plugin")
 private val enableCommandRegex = Regex("enable_ban_plugin")
@@ -210,22 +211,16 @@ class BanPlugin : Plugin {
     )
 
     override fun Module.setupDI(database: Database, params: JsonObject) {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun BehaviourContext.invoke(database: Database, params: Map<String, Any>) {
-        val adminsApi = params.adminsPlugin ?.adminsAPI(params.database ?: return) ?: return
-        val warningsRepository = database.warningsTable
-        val chatsSettings = database.chatsSettingsTable
-        val settingsPlugin = params.settingsPlugin
-
-        if (settingsPlugin != null) {
-            val toggleForUserData = "userToggle"
-            val toggleForAdminData = "adminToggle"
-            val allowWarnAdminsData = "allowWarnAdmins"
-            val warnsCountData = "warns"
-
-            val settingsProvider = object : SettingsProvider {
+        single(named("warningsTable")) { database.warningsTable }
+        single(named("chatsSettingsTable")) {
+            database.chatsSettingsTable
+            val settingsPlugin = params.settingsPlugin
+        }
+        single(named("settingsPlugin")) {
+            database.settingsPlugin
+        }
+        single {
+            object : SettingsProvider {
                 override val name: String
                     get() = "BanPlugin"
                 override val id: String
@@ -288,6 +283,22 @@ class BanPlugin : Plugin {
                 }
 
             }
+        }
+    }
+
+    override suspend fun BehaviourContext.invoke(database: Database, params: Map<String, Any>) {
+        val adminsApi = params.adminsPlugin ?.adminsAPI(params.database ?: return) ?: return
+        val warningsRepository = database.warningsTable
+        val chatsSettings = database.chatsSettingsTable
+        val settingsPlugin = params.settingsPlugin
+
+        if (settingsPlugin != null) {
+            val toggleForUserData = "userToggle"
+            val toggleForAdminData = "adminToggle"
+            val allowWarnAdminsData = "allowWarnAdmins"
+            val warnsCountData = "warns"
+
+            val settingsProvider =
             settingsPlugin.register(settingsProvider)
             onMessageDataCallbackQuery {
                 val (chatId, data) = extractChatIdAndData(it.data)
