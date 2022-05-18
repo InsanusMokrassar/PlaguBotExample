@@ -11,35 +11,34 @@ import dev.inmo.tgbotapi.types.MessageEntity.textsources.botCommand
 import dev.inmo.tgbotapi.types.User
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.sql.Database
+import org.koin.core.Koin
 
-data class InlineCommandsHelperBusPluginPart(
-    private val commandsGetter: suspend () -> List<BotCommand>
-) : InlineBusPluginPart {
-    override suspend fun getResults(user: User, query: String): List<InlineQueryResult> = commandsGetter().mapIndexed { i, it ->
-        InlineQueryResultArticle(
-            "commands_helper_$i",
-            it.command,
-            InputTextMessageContent(
-                buildEntities {
-                    botCommand(it.command)
-                }
-            ),
-            description = it.description
-        )
-    }
-}
-@Serializable
-data class InlineCommandsHelperPluginFactory(
-    @Contextual
-    private val holder: PluginsHolder? = null
-) : InlineBusPluginPartFactory {
-    override suspend fun BehaviourContext.createParts(
-        database: Database,
-        params: Map<String, Any>
-    ): List<InlineBusPluginPart> = listOfNotNull(
-        (params.plagubot ?: holder) ?.let {
-            InlineCommandsHelperBusPluginPart(it::getCommands)
-        }
-    )
-}
+//data class InlineCommandsHelperBusPluginPart(
+//    private val commandsGetter: suspend () -> List<BotCommand>
+//) : InlineBusPluginPart {
+//    override suspend fun getResults(user: User, query: String): List<InlineQueryResult> = commandsGetter().mapIndexed { i, it ->
+//        InlineQueryResultArticle(
+//            "commands_helper_$i",
+//            it.command,
+//            InputTextMessageContent(
+//                buildEntities {
+//                    botCommand(it.command)
+//                }
+//            ),
+//            description = it.description
+//        )
+//    }
+//}
+//@Serializable
+//data class InlineCommandsHelperPluginFactory(
+//    @Contextual
+//    private val holder: PluginsHolder? = null
+//) : InlineBusPluginPartFactory {
+//    override suspend fun BehaviourContext.createParts(
+//        koin: Koin
+//    ): List<InlineBusPluginPart> = listOfNotNull(
+//        (params.plagubot ?: holder) ?.let {
+//            InlineCommandsHelperBusPluginPart(it::getCommands)
+//        }
+//    )
+//}

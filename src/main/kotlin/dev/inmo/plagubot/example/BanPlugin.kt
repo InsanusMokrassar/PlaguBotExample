@@ -39,9 +39,11 @@ import dev.inmo.tgbotapi.types.message.content.TextContent
 import kotlinx.coroutines.*
 import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
 import org.jetbrains.exposed.sql.Database
+import org.koin.core.module.Module
 
 private val disableCommandRegex = Regex("disable_ban_plugin")
 private val enableCommandRegex = Regex("enable_ban_plugin")
@@ -206,6 +208,10 @@ class BanPlugin : Plugin {
             "Ban user in reply"
         )
     )
+
+    override fun Module.setupDI(database: Database, params: JsonObject) {
+        TODO("Not yet implemented")
+    }
 
     override suspend fun BehaviourContext.invoke(database: Database, params: Map<String, Any>) {
         val adminsApi = params.adminsPlugin ?.adminsAPI(params.database ?: return) ?: return
