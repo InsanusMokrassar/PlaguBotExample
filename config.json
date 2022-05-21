@@ -1,10 +1,10 @@
 {
   "botToken": "1234567890:ABCDEFGHIJKLMNOP_qrstuvwxyz12345678",
   "plugins": [
+    "dev.inmo.tgbotapi.libraries.cache.admins.AdminsPlugin",
     "dev.inmo.plagubot.example.BanPlugin",
     "dev.inmo.plagubot.example.CustomPlugin",
     "dev.inmo.plagubot.plugins.captcha.CaptchaBotPlugin",
-    "dev.inmo.tgbotapi.libraries.cache.admins.AdminsPlugin",
     "dev.inmo.plagubot.example.SettingsPlugin"
   ],
   "flushUpdates": true,

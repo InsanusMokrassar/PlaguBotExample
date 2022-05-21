@@ -20,9 +20,12 @@ import dev.inmo.tgbotapi.types.message.abstracts.ContentMessage
 import dev.inmo.tgbotapi.types.message.content.TextContent
 import dev.inmo.tgbotapi.types.message.content.abstracts.MessageContent
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.polymorphic
 import org.jetbrains.exposed.sql.Database
+import org.koin.core.Koin
+import org.koin.core.module.Module
 
 private class WelcomesTable(
     database: Database
@@ -43,13 +46,17 @@ class WelcomePlugin : Plugin {
     private val setWelcomeCommand = "welcome"
     private val unsetWelcomeCommand = "remove_welcome"
 
-    override suspend fun getCommands(): List<BotCommand> = listOf(
-        BotCommand(setWelcomeCommand, "Use with reply to the message which must be used as welcome message"),
-        BotCommand(unsetWelcomeCommand, "Use to remove welcome message"),
-    )
-    override suspend fun BehaviourContext.invoke(database: Database, params: Map<String, Any>) {
-        val db = WelcomesTable(database)
-        val adminsApi = params.adminsPlugin ?.adminsAPI(params.database ?: return) ?: return
+//    override suspend fun getCommands(): List<BotCommand> = listOf(
+//        BotCommand(setWelcomeCommand, "Use with reply to the message which must be used as welcome message"),
+//        BotCommand(unsetWelcomeCommand, "Use to remove welcome message"),
+//    )
+    override fun Module.setupDI(database: Database, params: JsonObject) {
+        single { WelcomesTable(database) }
+    }
+
+    override suspend fun BehaviourContext.setupBotPlugin(koin: Koin) {
+        val db = koin.get<WelcomesTable>()
+        val adminsApi = koin.adminsPlugin ?.adminsAPI(koin.get()) ?: return
 
         onCommand(setWelcomeCommand, requireOnlyCommandInMessage = true) {
             it.doAfterVerification(adminsApi) {
