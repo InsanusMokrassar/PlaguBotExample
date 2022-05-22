@@ -8,8 +8,7 @@ import dev.inmo.tgbotapi.types.BotCommand
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.InlineQueryResultArticle
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.abstracts.InlineQueryResult
 import dev.inmo.tgbotapi.types.InlineQueries.InputMessageContent.InputTextMessageContent
-import dev.inmo.tgbotapi.types.MessageEntity.textsources.botCommand
-import dev.inmo.tgbotapi.types.User
+import dev.inmo.tgbotapi.types.chat.User
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
 import org.koin.core.Koin

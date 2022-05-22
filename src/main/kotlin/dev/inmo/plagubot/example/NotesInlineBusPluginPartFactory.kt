@@ -6,6 +6,7 @@ import dev.inmo.micro_utils.repos.exposed.*
 import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
 import dev.inmo.tgbotapi.extensions.behaviour_builder.expectations.waitText
+import dev.inmo.tgbotapi.extensions.behaviour_builder.expectations.waitTextMessage
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.command
 import dev.inmo.tgbotapi.extensions.utils.asContentMessage
 import dev.inmo.tgbotapi.extensions.utils.asFromUserMessage
@@ -14,11 +15,14 @@ import dev.inmo.tgbotapi.types.*
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.InlineQueryResultArticle
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.abstracts.InlineQueryResult
 import dev.inmo.tgbotapi.types.InlineQueries.InputMessageContent.InputTextMessageContent
+import dev.inmo.tgbotapi.types.chat.User
 import dev.inmo.tgbotapi.types.message.abstracts.FromUserMessage
 import dev.inmo.tgbotapi.types.message.content.TextContent
 import dev.inmo.tgbotapi.types.message.textsources.TextSource
 import dev.inmo.tgbotapi.types.message.textsources.TextSourceSerializer
 import dev.inmo.tgbotapi.utils.extensions.makeString
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.cbor.Cbor
@@ -187,13 +191,9 @@ class NotesInlineBusPluginPartFactory : InlineBusPluginPartFactory {
             var title = commandMessage.parseCommandsWithParams()[SaveNoteCommand] ?.firstOrNull()
             if (title.isNullOrBlank()) {
                 reply(commandMessage, "Ok, send me title for note")
-                title = waitText {
-                    if (commandMessage.chat.id == this.chat.id && (this as? FromUserMessage) ?.user ?.id == user.id) {
-                        this.content
-                    } else {
-                        null
-                    }
-                }.first().text
+                title = waitTextMessage().filter {
+                    commandMessage.chat.id == it.chat.id && (this as? FromUserMessage) ?.user ?.id == user.id
+                }.first().content.text
             }
             textPart.saveNote(TextNoteInfo(user.id.chatId, title, content.textSources))
             reply(commandMessage, "Note saved with title $title")

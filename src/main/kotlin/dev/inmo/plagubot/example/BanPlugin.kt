@@ -1,6 +1,5 @@
 package dev.inmo.plagubot.example
 
-import com.benasher44.uuid.uuid4
 import dev.inmo.micro_utils.common.*
 import dev.inmo.micro_utils.coroutines.*
 import dev.inmo.micro_utils.repos.*
@@ -18,11 +17,9 @@ import dev.inmo.tgbotapi.extensions.api.edit.text.editMessageText
 import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.api.send.sendMessage
 import dev.inmo.tgbotapi.extensions.behaviour_builder.*
-import dev.inmo.tgbotapi.extensions.behaviour_builder.expectations.waitMessageDataCallbackQuery
-import dev.inmo.tgbotapi.extensions.behaviour_builder.expectations.waitText
+import dev.inmo.tgbotapi.extensions.behaviour_builder.expectations.*
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.*
 import dev.inmo.tgbotapi.extensions.behaviour_builder.utils.marker_factories.ByUserMessageMarkerFactory
-import dev.inmo.tgbotapi.extensions.utils.asFromUser
 import dev.inmo.tgbotapi.extensions.utils.asUser
 import dev.inmo.tgbotapi.extensions.utils.formatting.*
 import dev.inmo.tgbotapi.extensions.utils.types.buttons.*
@@ -37,7 +34,7 @@ import dev.inmo.tgbotapi.types.chat.member.AdministratorChatMember
 import dev.inmo.tgbotapi.types.message.abstracts.*
 import dev.inmo.tgbotapi.types.message.content.TextContent
 import dev.inmo.tgbotapi.types.queries.callback.MessageDataCallbackQuery
-import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -48,8 +45,6 @@ import org.koin.core.Koin
 import org.koin.core.module.Module
 import org.koin.core.qualifier.named
 
-private val disableCommandRegex = Regex("disable_ban_plugin")
-private val enableCommandRegex = Regex("enable_ban_plugin")
 private val warningCommandRegex = Regex("warn(ing)?")
 private val banCommandRegex = Regex("ban")
 private val unwarningCommandRegex = Regex("unwarn(ing)?")
@@ -256,40 +251,37 @@ class BanPlugin : Plugin {
                         needNewMessage = true
                         oneOf(
                             parallel {
-                                waitText(
+                                waitTextMessage (
                                     SendTextMessage(
                                         userId,
                                         buildEntities {
                                             +"Type count of warns until ban or "
                                             botCommand("cancel")
                                         }
-                                    ),
-                                    filter = { message ->
-                                        (message.content.text.toIntOrNull() != null).also { passed ->
-                                            if (!passed) {
-                                                reply(
-                                                    message,
-                                                    buildEntities {
-                                                        +"You should type some number instead or "
-                                                        botCommand("cancel")
-                                                        +" instead of \""
-                                                        +message.content.textSources
-                                                        +"\""
-                                                    }
-                                                )
-                                            }
+                                    )
+                                ).filter { message ->
+                                    (message.content.text.toIntOrNull() != null).also { passed ->
+                                        if (!passed) {
+                                            reply(
+                                                message,
+                                                buildEntities {
+                                                    +"You should type some number instead or "
+                                                    botCommand("cancel")
+                                                    +" instead of \""
+                                                    +message.content.textSources
+                                                    +"\""
+                                                }
+                                            )
                                         }
                                     }
-                                ).first().text.toIntOrNull()
+                                }.first().content.text.toIntOrNull()
                             },
                             parallel {
-                                waitText(
-                                    filter = {
-                                        it.content.textSources.any {
-                                            it is BotCommandTextSource && it.command == "cancel"
-                                        }
+                                waitText().filter {
+                                    it.textSources.any {
+                                        it is BotCommandTextSource && it.command == "cancel"
                                     }
-                                ).first()
+                                }.first()
                                 sendMessage(userId, "Canceled")
                                 null // if received command with cancel - just return null and next ?: will cancel everything
                             }
@@ -384,11 +376,9 @@ class BanPlugin : Plugin {
                             }
                         )
                     }
-                    val messageDataCallbackQuery = waitMessageDataCallbackQuery(
-                        filter = {
-                            it.user.id == userId && it.message.chat.id == userId && it.message.messageId == messageId
-                        }
-                    ).firstOrNull() ?: return
+                    val messageDataCallbackQuery = waitMessageDataCallbackQuery().filter {
+                        it.user.id == userId && it.message.chat.id == userId && it.message.messageId == messageId
+                    }.firstOrNull() ?: return
 
                     updateSettings(adminsApi, chatsSettings, messageDataCallbackQuery)
 
