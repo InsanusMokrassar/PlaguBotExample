@@ -1,19 +1,14 @@
 {
   "botToken": "1234567890:ABCDEFGHIJKLMNOP_qrstuvwxyz12345678",
   "plugins": [
-    "admins","settingsPlugin",
-    {"type": "dev.inmo.plagubot.example.BanPlugin"},
-    {"type": "dev.inmo.plagubot.example.CustomPlugin", "flushUpdates": true},
-    {"type": "dev.inmo.plagubot.plugins.captcha.CaptchaBotPlugin"}
+    "dev.inmo.tgbotapi.libraries.cache.admins.AdminsPlugin",
+    "dev.inmo.plagubot.example.BanPlugin",
+    "dev.inmo.plagubot.example.CustomPlugin",
+    "dev.inmo.plagubot.plugins.captcha.CaptchaBotPlugin",
+    "dev.inmo.plagubot.example.SettingsPlugin"
   ],
-  "params": {
-    "defaultDatabase": [
-      "dev.inmo.plagubot.config.DatabaseConfig",
-      {
-        "url": "jdbc:sqlite:local.db"
-      }
-    ],
-    "admins": {"type": "dev.inmo.tgbotapi.libraries.cache.admins.AdminsPlugin"},
-    "settingsPlugin": {"type": "dev.inmo.plagubot.example.SettingsPlugin"}
+  "flushUpdates": true,
+  "database": {
+    "url": "jdbc:sqlite:local.db"
   }
 }

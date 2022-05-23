@@ -5,7 +5,7 @@ import dev.inmo.plagubot.config.database
 import dev.inmo.plagubot.example.utils.extractChatIdAndData
 import dev.inmo.plagubot.example.utils.settingsDataButton
 import dev.inmo.tgbotapi.extensions.api.chat.get.getChat
-import dev.inmo.tgbotapi.extensions.api.edit.ReplyMarkup.editMessageReplyMarkup
+import dev.inmo.tgbotapi.extensions.api.edit.reply_markup.editMessageReplyMarkup
 import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.api.send.sendTextMessage
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
@@ -21,7 +21,11 @@ import dev.inmo.tgbotapi.types.ChatId
 import dev.inmo.tgbotapi.types.MessageIdentifier
 import dev.inmo.tgbotapi.types.UserId
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 import org.jetbrains.exposed.sql.Database
+import org.koin.core.Koin
+import org.koin.core.module.Module
+import org.koin.core.scope.Scope
 
 interface SettingsProvider{
     val name: String
@@ -55,12 +59,16 @@ class SettingsPlugin : SettingsProvider, Plugin{
     }
 
     override suspend fun BehaviourContext.drawSettings(chatId: ChatId, userId: UserId, messageId: MessageIdentifier){
-            println(" Test $chatId $userId ")
-            editMessageReplyMarkup(chatId, messageId, replyMarkup = createProvidersInlineKeyboard(chatId))
+        println(" Test $chatId $userId ")
+        editMessageReplyMarkup(chatId, messageId, replyMarkup = createProvidersInlineKeyboard(chatId))
     }
 
-    override suspend fun BehaviourContext.invoke(database: Database, params: Map<String, Any>) {
-        val adminsApi = params.adminsPlugin ?.adminsAPI(params.database ?: return) ?: return
+    override fun Module.setupDI(database: Database, params: JsonObject) {
+        single { this@SettingsPlugin }
+    }
+
+    override suspend fun BehaviourContext.setupBotPlugin(koin: Koin) {
+        val adminsApi = koin.adminsPlugin ?.adminsAPI(koin.get()) ?: return
         onCommand("settings") { commandMessage ->
             val verified = commandMessage.doAfterVerification(adminsApi) {
                 commandMessage.whenFromUser {
@@ -100,8 +108,10 @@ class SettingsPlugin : SettingsProvider, Plugin{
     }
 }
 
-val Map<String, Any>.settingsPlugin
-    get() = get("settingsPlugin") as? SettingsPlugin
+val Scope.settingsPlugin
+    get() = getOrNull<SettingsPlugin>()
+val Koin.settingsPlugin
+    get() = getOrNull<SettingsPlugin>()
 
 
 

@@ -2,16 +2,16 @@ package dev.inmo.plagubot.example
 
 import dev.inmo.plagubot.*
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
+import dev.inmo.tgbotapi.extensions.utils.formatting.botCommand
 import dev.inmo.tgbotapi.extensions.utils.formatting.buildEntities
 import dev.inmo.tgbotapi.types.BotCommand
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.InlineQueryResultArticle
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.abstracts.InlineQueryResult
 import dev.inmo.tgbotapi.types.InlineQueries.InputMessageContent.InputTextMessageContent
-import dev.inmo.tgbotapi.types.MessageEntity.textsources.botCommand
-import dev.inmo.tgbotapi.types.User
+import dev.inmo.tgbotapi.types.chat.User
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.sql.Database
+import org.koin.core.Koin
 
 data class InlineCommandsHelperBusPluginPart(
     private val commandsGetter: suspend () -> List<BotCommand>
@@ -29,17 +29,16 @@ data class InlineCommandsHelperBusPluginPart(
         )
     }
 }
-@Serializable
-data class InlineCommandsHelperPluginFactory(
-    @Contextual
-    private val holder: PluginsHolder? = null
-) : InlineBusPluginPartFactory {
-    override suspend fun BehaviourContext.createParts(
-        database: Database,
-        params: Map<String, Any>
-    ): List<InlineBusPluginPart> = listOfNotNull(
-        (params.plagubot ?: holder) ?.let {
-            InlineCommandsHelperBusPluginPart(it::getCommands)
-        }
-    )
-}
+//@Serializable
+//data class InlineCommandsHelperPluginFactory(
+//    @Contextual
+//    private val holder: PluginsHolder? = null
+//) : InlineBusPluginPartFactory {
+//    override suspend fun BehaviourContext.createParts(
+//        koin: Koin
+//    ): List<InlineBusPluginPart> = listOfNotNull(
+//        (params.plagubot ?: holder) ?.let {
+//            InlineCommandsHelperBusPluginPart(it::getCommands)
+//        }
+//    )
+//}

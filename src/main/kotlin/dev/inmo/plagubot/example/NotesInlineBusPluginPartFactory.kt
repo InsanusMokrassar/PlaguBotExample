@@ -3,15 +3,11 @@ package dev.inmo.plagubot.example
 import dev.inmo.micro_utils.pagination.*
 import dev.inmo.micro_utils.repos.*
 import dev.inmo.micro_utils.repos.exposed.*
-import dev.inmo.micro_utils.repos.exposed.keyvalue.ExposedKeyValueRepo
-import dev.inmo.micro_utils.repos.mappers.withMapper
-import dev.inmo.plagubot.config.database
-import dev.inmo.tgbotapi.CommonAbstracts.*
 import dev.inmo.tgbotapi.extensions.api.send.reply
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
 import dev.inmo.tgbotapi.extensions.behaviour_builder.expectations.waitText
+import dev.inmo.tgbotapi.extensions.behaviour_builder.expectations.waitTextMessage
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.command
-import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommand
 import dev.inmo.tgbotapi.extensions.utils.asContentMessage
 import dev.inmo.tgbotapi.extensions.utils.asFromUserMessage
 import dev.inmo.tgbotapi.extensions.utils.extensions.parseCommandsWithParams
@@ -19,15 +15,15 @@ import dev.inmo.tgbotapi.types.*
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.InlineQueryResultArticle
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.abstracts.InlineQueryResult
 import dev.inmo.tgbotapi.types.InlineQueries.InputMessageContent.InputTextMessageContent
-import dev.inmo.tgbotapi.types.MessageEntity.textsources.TextSource
-import dev.inmo.tgbotapi.types.MessageEntity.textsources.TextSourceSerializer
-import dev.inmo.tgbotapi.types.buttons.InlineKeyboardButtons.CallbackDataInlineKeyboardButton
-import dev.inmo.tgbotapi.types.message.abstracts.ContentMessage
+import dev.inmo.tgbotapi.types.chat.User
 import dev.inmo.tgbotapi.types.message.abstracts.FromUserMessage
 import dev.inmo.tgbotapi.types.message.content.TextContent
+import dev.inmo.tgbotapi.types.message.textsources.TextSource
+import dev.inmo.tgbotapi.types.message.textsources.TextSourceSerializer
 import dev.inmo.tgbotapi.utils.extensions.makeString
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Serializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.cbor.Cbor
 import org.jetbrains.exposed.sql.*
@@ -35,6 +31,7 @@ import org.jetbrains.exposed.sql.statements.InsertStatement
 import org.jetbrains.exposed.sql.statements.UpdateStatement
 import org.jetbrains.exposed.sql.statements.api.ExposedBlob
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.koin.core.Koin
 
 typealias TextNoteKey = Pair<Identifier, String>
 typealias TextNoteId = Long
@@ -48,7 +45,7 @@ private val textSourcesSerializer = ListSerializer(TextSourceSerializer)
 data class TextNoteInfo(
     val owner: Identifier,
     val keyword: String,
-    val sources: List<@Serializable(TextSourceSerializer::class) TextSource>
+    val sources: List<TextSource>
 ) {
     val key by lazy {
         TextNoteKey(owner, keyword)
@@ -172,10 +169,9 @@ class NotesInlineBusPluginPartFactory : InlineBusPluginPartFactory {
         )
 
     override suspend fun BehaviourContext.createParts(
-        database: Database,
-        params: Map<String, Any>
+        koin: Koin
     ): List<InlineBusPluginPart> {
-        val db = params.database ?: database
+        val db = koin.get<Database>()
         val textPart = NotesTextInlineBusPart(db)
         command(Regex(SaveNoteCommand), requireOnlyCommandInMessage = false) { commandMessage ->
             val repliedTo = commandMessage.replyTo ?.asContentMessage()
@@ -195,13 +191,9 @@ class NotesInlineBusPluginPartFactory : InlineBusPluginPartFactory {
             var title = commandMessage.parseCommandsWithParams()[SaveNoteCommand] ?.firstOrNull()
             if (title.isNullOrBlank()) {
                 reply(commandMessage, "Ok, send me title for note")
-                title = waitText {
-                    if (commandMessage.chat.id == this.chat.id && (this as? FromUserMessage) ?.user ?.id == user.id) {
-                        this.content
-                    } else {
-                        null
-                    }
-                }.first().text
+                title = waitTextMessage().filter {
+                    commandMessage.chat.id == it.chat.id && (this as? FromUserMessage) ?.user ?.id == user.id
+                }.first().content.text
             }
             textPart.saveNote(TextNoteInfo(user.id.chatId, title, content.textSources))
             reply(commandMessage, "Note saved with title $title")

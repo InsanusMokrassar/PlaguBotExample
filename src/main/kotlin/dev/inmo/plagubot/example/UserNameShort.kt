@@ -1,6 +1,6 @@
 package dev.inmo.plagubot.example
 
-import dev.inmo.tgbotapi.types.User
+import dev.inmo.tgbotapi.types.chat.User
 
 val User.name
     get() = listOfNotNull(

@@ -7,10 +7,10 @@ import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onBaseIn
 import dev.inmo.tgbotapi.extensions.behaviour_builder.utils.marker_factories.ByUserInlineQueryMarkerFactory
 import dev.inmo.tgbotapi.types.*
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.abstracts.InlineQueryResult
-import kotlinx.serialization.Contextual
+import dev.inmo.tgbotapi.types.chat.User
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
-import org.jetbrains.exposed.sql.Database
+import org.koin.core.Koin
 import kotlin.math.min
 
 interface InlineBusPluginPart {
@@ -20,27 +20,19 @@ interface InlineBusPluginPart {
 interface InlineBusPluginPartFactory {
     val additionalCommands: List<BotCommand>
         get() = emptyList()
-    suspend fun BehaviourContext.createParts(database: Database, params: Map<String, Any>): List<InlineBusPluginPart>
+    suspend fun BehaviourContext.createParts(koin: Koin): List<InlineBusPluginPart>
 }
 
 @Serializable
-class InlineBusPlugin(
-    private val preparts: List<@Contextual InlineBusPluginPartFactory> = emptyList(),
-    private val includeParamsParticipants: Boolean = true
-) : Plugin {
-    override suspend fun getCommands(): List<BotCommand>  = preparts.flatMap { it.additionalCommands }
+class InlineBusPlugin : Plugin {
     @Transient
     private val maxAnswers = inlineQueryAnswerResultsLimit.last
-    override suspend fun BehaviourContext.invoke(database: Database, params: Map<String, Any>) {
-        val paramsParts = if (includeParamsParticipants) {
-            params.values.filterIsInstance<InlineBusPluginPartFactory>().filter { it in preparts }
-        } else {
-            emptyList()
-        }
-        val factories = preparts + paramsParts
-        val parts = factories.flatMap {
-            it.run { createParts(database, params) }
-        } + params.values.filterIsInstance<InlineBusPluginPart>()
+
+    override suspend fun BehaviourContext.setupBotPlugin(koin: Koin) {
+        val factories = koin.getAll<InlineBusPluginPartFactory>().distinct()
+        val parts = (factories.flatMap {
+            it.run { createParts(koin) }
+        } + koin.getAll<InlineBusPluginPart>()).distinct()
 
         onBaseInlineQuery(
             markerFactory = ByUserInlineQueryMarkerFactory
