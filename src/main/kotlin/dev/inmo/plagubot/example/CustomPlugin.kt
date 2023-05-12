@@ -1,6 +1,7 @@
 package dev.inmo.plagubot.example
 
 import dev.inmo.kslog.common.*
+import dev.inmo.kslog.common.filter.filtered
 import dev.inmo.micro_utils.coroutines.*
 import dev.inmo.micro_utils.koin.singleWithBinds
 import dev.inmo.plagubot.Plugin
@@ -14,6 +15,8 @@ import dev.inmo.tgbotapi.extensions.utils.extensions.raw.new_chat_member
 import dev.inmo.tgbotapi.extensions.utils.updates.retrieving.retrieveAccumulatedUpdates
 import dev.inmo.tgbotapi.types.chat.member.BannedChatMember
 import dev.inmo.tgbotapi.types.chat.member.KickedChatMember
+import io.ktor.client.plugins.HttpRequestTimeoutException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.onEach
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.StringFormat
@@ -30,6 +33,12 @@ class CustomPlugin : Plugin, KoinComponent {
     private val log = logger
     private val flushUpdates by inject<Boolean>(named("flushUpdates"))
     private val clearCommands by inject<Boolean>(named("clearCommands"))
+
+    init {
+        KSLog.default = KSLog("ExampleBot").filtered { l, t, throwable ->
+            l > LogLevel.DEBUG && throwable !is CancellationException && throwable !is HttpRequestTimeoutException
+        }
+    }
 
     override fun Module.setupDI(database: Database, params: JsonObject) {
         singleWithBinds<StringFormat> { get<Json>() }
@@ -70,11 +79,13 @@ class CustomPlugin : Plugin, KoinComponent {
             }
         }
         allUpdatesFlow.subscribeSafelyWithoutExceptions(this) {
-            log.i(it)
+            log.d { it }
         }
         val currentDefaultSafelyExceptionHandler = defaultSafelyExceptionHandler
         defaultSafelyExceptionHandler = {
-            it.printStackTrace()
+            if (it !is CancellationException) {
+                it.printStackTrace()
+            }
             currentDefaultSafelyExceptionHandler(it)
         }
         println(getMe())
