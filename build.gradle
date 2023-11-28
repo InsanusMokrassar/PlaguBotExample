@@ -48,3 +48,15 @@ dependencies {
 application {
     mainClassName = 'dev.inmo.plagubot.AppKt'
 }
+
+compileJava {
+    sourceCompatibility JavaVersion.VERSION_17.toString()
+    targetCompatibility JavaVersion.VERSION_17.toString()
+}
+
+
+compileKotlin {
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}

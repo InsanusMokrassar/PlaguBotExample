@@ -36,7 +36,7 @@ class CustomPlugin : Plugin, KoinComponent {
 
     init {
         KSLog.default = KSLog("ExampleBot").filtered { l, t, throwable ->
-            l > LogLevel.DEBUG && throwable !is CancellationException && throwable !is HttpRequestTimeoutException
+            l > LogLevel.VERBOSE && throwable !is CancellationException && throwable !is HttpRequestTimeoutException
         }
     }
 
@@ -98,6 +98,9 @@ class CustomPlugin : Plugin, KoinComponent {
 
         onCommand(Regex(".*")) {
             log.d { "Handled command: ${it.content}" }
+        }
+        onUnhandledCommand {
+            log.v { "Unknown command: ${it.content}" }
         }
         enableSettings(
             koin.get(),
