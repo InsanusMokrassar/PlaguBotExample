@@ -11,17 +11,13 @@ import dev.inmo.tgbotapi.extensions.api.bot.getMe
 import dev.inmo.tgbotapi.extensions.api.chat.members.unbanChatMember
 import dev.inmo.tgbotapi.extensions.behaviour_builder.BehaviourContext
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.*
-import dev.inmo.tgbotapi.extensions.utils.extensions.raw.new_chat_member
 import dev.inmo.tgbotapi.extensions.utils.updates.retrieving.retrieveAccumulatedUpdates
-import dev.inmo.tgbotapi.types.chat.member.BannedChatMember
 import dev.inmo.tgbotapi.types.chat.member.KickedChatMember
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.onEach
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.StringFormat
 import kotlinx.serialization.json.*
-import org.jetbrains.exposed.sql.Database
 import org.koin.core.Koin
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -40,18 +36,18 @@ class CustomPlugin : Plugin, KoinComponent {
         }
     }
 
-    override fun Module.setupDI(database: Database, params: JsonObject) {
+    override fun Module.setupDI(config: JsonObject) {
         singleWithBinds<StringFormat> { get<Json>() }
         single(named("flushUpdates")) {
             runCatching {
-                params["flushUpdates"]?.jsonPrimitive ?.booleanOrNull == true
+                config["flushUpdates"]?.jsonPrimitive ?.booleanOrNull == true
             }.getOrElse {
                 false
             }
         }
         single(named("clearCommands")) {
             runCatching {
-                params["clearCommands"]?.jsonPrimitive ?.booleanOrNull == true
+                config["clearCommands"]?.jsonPrimitive ?.booleanOrNull == true
             }.getOrElse {
                 false
             }
@@ -60,6 +56,7 @@ class CustomPlugin : Plugin, KoinComponent {
             getKoin()
         }
     }
+
     override suspend fun BehaviourContext.setupBotPlugin(koin: Koin) {
         if (flushUpdates) {
             log.i("Start flush updates")
