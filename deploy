@@ -15,7 +15,7 @@ function assert_success() {
 
 app=adminbot
 version="`grep ./gradle.properties -e "^version=" | sed -e "s/version=\(.*\)/\1/"`"
-server=docker.inmo.dev
+server=insanusmokrassar
 
 assert_success ./gradlew build
 # scp ./build/distributions/AutoPostTestTelegramBot-1.0.0.zip ./config.json developer@insanusmokrassar.dev:/tmp/
