@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0
+## 0.6.0
 
 - Update Kotlin plugins and standard library: `2.3.21` -> `2.4.21`.
 - Update Gradle: `8.12.1` -> `9.7.0`; migrate application and Kotlin compiler DSL settings.
